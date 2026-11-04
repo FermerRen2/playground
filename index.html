@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PLAYGROUND — творческая площадка</title>
+  <meta name="description" content="Эксперименты, мини-игры и генеративная графика. Всё на чистом HTML, CSS и JavaScript.">
+  <meta name="theme-color" content="#05030f">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2305030f'/><circle cx='16' cy='16' r='7' fill='none' stroke='%2300f0ff' stroke-width='2.5'/><circle cx='16' cy='16' r='2' fill='%23ff2bd6'/></svg>">
+</head>
+<body>
+
+  <div class="bg"></div>
+  <canvas id="stars"></canvas>
+  <div class="vignette"></div>
+  <div class="scanlines"></div>
+
+  <div class="wrap">
+
+    <header>
+      <div class="kicker">эксперименты <span>·</span> игры <span>·</span> графика</div>
+      <h1>PLAYGROUND</h1>
+      <p class="sub">
+        Куча мелких штук, сделанных ради интереса. Каждая живёт отдельно,
+        открывается в браузере и не требует ничего, кроме него.
+      </p>
+      <div class="rule"></div>
+    </header>
+
+    <main class="grid">
+
+      <a class="card" href="games/neon-snake/">
+        <span class="tag game">игра</span>
+        <h2>Neon Snake</h2>
+        <p>Классическая змейка, но со светящимся следом и ускорением на каждом уровне.</p>
+        <span class="go">играть →</span>
+      </a>
+
+      <a class="card" href="games/flow-field/">
+        <span class="tag visual">графика</span>
+        <h2>Flow Field</h2>
+        <p>Тысячи частиц, ведомые невидимым полем. Мышь притягивает их к себе.</p>
+        <span class="go">смотреть →</span>
+      </a>
+
+      <div class="card soon">
+        <span class="tag soon">скоро</span>
+        <h2>Место свободно</h2>
+        <p>Следующий эксперимент появится здесь. Пока просто пустая карточка.</p>
+      </div>
+
+    </main>
+
+    <footer>
+      собрано вручную · <a href="https://github.com/FermerRen2/playground">исходники</a>
+    </footer>
+
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

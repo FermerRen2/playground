@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Flow Field — PLAYGROUND</title>
+  <meta name="theme-color" content="#05030f">
+  <link rel="stylesheet" href="../../style.css">
+  <style>
+    html, body { overflow: hidden; height: 100%; }
+    #flow {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+    }
+    .teaser {
+      position: fixed;
+      inset: 0;
+      z-index: 4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      pointer-events: none;
+      text-align: center;
+      padding: 0 24px;
+      animation: fadeOut 1s ease 3.4s forwards;
+    }
+    @keyframes fadeOut {
+      to { opacity: 0; visibility: hidden; }
+    }
+    .teaser p {
+      margin: 0;
+      font-size: 11px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-shadow: 0 0 20px #000;
+    }
+    .panel {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .chip {
+      font-family: inherit;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      padding: 9px 14px;
+      color: var(--muted);
+      background: rgba(11, 7, 32, 0.7);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .chip:hover { color: var(--cyan); border-color: rgba(0, 240, 255, 0.55); }
+    .chip.on {
+      color: #04121a;
+      background: linear-gradient(100deg, var(--cyan), var(--violet));
+      border-color: transparent;
+      font-weight: 700;
+      box-shadow: 0 0 24px -6px rgba(0, 240, 255, 0.85);
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="flow"></canvas>
+
+  <a class="back" href="../../">← назад</a>
+
+  <div class="teaser">
+    <h1 class="title-neon">Flow Field</h1>
+    <p>води мышью · кликай для вспышки</p>
+  </div>
+
+  <div class="panel">
+    <button class="chip on" data-pal="0">неон</button>
+    <button class="chip" data-pal="1">огонь</button>
+    <button class="chip" data-pal="2">лёд</button>
+    <button class="chip" id="clear">сброс</button>
+  </div>
+
+  <script src="flow.js"></script>
+</body>
+</html>
