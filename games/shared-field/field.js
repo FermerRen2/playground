@@ -11,6 +11,18 @@ import { joinRoom, selfId } from '../../lib/trystero.bundle.js';
 
 const APP_ID = 'playground-shared-field-v1';
 
+// Публичные Nostr-релеи, через которые браузеры находят друг друга.
+// Список проверен на этой машине; мёртвые релеи исключены, чтобы не тормозить поиск.
+const RELAYS = [
+  'wss://relay.damus.io',
+  'wss://nos.lol',
+  'wss://relay.primal.net',
+  'wss://relay.snort.social',
+  'wss://cdn.satellite.earth',
+  'wss://relay.nostrmap.net',
+  'wss://nostr.chaima.info'
+];
+
 const SEND_MS = 90;          // как часто отправляем свою позицию
 const HEARTBEAT = 1000;      // «я живой», даже если не двигаюсь
 const FORGET_AFTER = 12000;  // страховка, если игрок пропал без сообщения об уходе
@@ -100,7 +112,10 @@ function connect() {
   setStatus('wait', 'поиск игроков…');
 
   try {
-    room = joinRoom({ appId: APP_ID }, roomName);
+    room = joinRoom({
+      appId: APP_ID,
+      relayConfig: { urls: RELAYS, redundancy: 4, warnOnRelayFailure: false }
+    }, roomName);
   } catch (e) {
     setStatus('off', 'сеть недоступна');
     return;
