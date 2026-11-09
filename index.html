@@ -188,16 +188,20 @@
         </div>
 
         <div class="space-y-2">
-          <label class="block text-slate-400 font-medium">
-            Ссылка на Google Диск / Интернет-картинку
-          </label>
-          <input type="text" id="inputMediaUrl" placeholder="https://drive.google.com/file/d/.../view или прямой URL" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none">
-          
-          <div class="flex items-center gap-2 pt-1">
-            <span class="text-[10px] text-slate-500 uppercase font-semibold">или загрузить файл с устройства:</span>
+          <div class="flex items-center justify-between gap-2">
+            <label class="block text-slate-400 font-medium">Медиафайлы точки</label>
+            <button type="button" id="addMediaRowBtn" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-semibold transition inline-flex items-center gap-1.5">
+              <i class="fa-solid fa-plus text-[10px]"></i> Добавить медиафайл
+            </button>
+          </div>
+
+          <div id="mediaRows" class="space-y-2"></div>
+
+          <div class="flex items-center gap-2 pt-1 flex-wrap">
+            <span class="text-[10px] text-slate-500 uppercase font-semibold">или загрузить фото с устройства:</span>
             <label class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] cursor-pointer transition inline-flex items-center gap-1.5 border border-slate-700">
               <i class="fa-solid fa-paperclip"></i> Выбрать фото
-              <input type="file" id="localMediaInput" accept="image/*" class="hidden">
+              <input type="file" id="localMediaInput" accept="image/*" multiple class="hidden">
             </label>
           </div>
           <p id="localFileInfo" class="text-[10px] text-emerald-400 truncate hidden"></p>
@@ -241,19 +245,21 @@
       </div>
 
       <div class="flex-1 overflow-y-auto p-5 space-y-4 custom-scroll">
-        <div id="viewModeBar" class="flex items-center justify-between bg-slate-950 p-1.5 rounded-xl border border-slate-800 hidden">
-          <span class="text-[11px] text-slate-400 px-2 font-medium">Режим отображения:</span>
-          <div class="flex items-center gap-1">
-            <button id="viewTabImage" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition">
-              <i class="fa-regular fa-image"></i> Фото
+        <div>
+          <div id="mediaContainer" class="w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex flex-col items-center justify-center min-h-[240px] relative"></div>
+
+          <div id="galleryControls" class="hidden items-center justify-between gap-2 mt-3">
+            <button id="galleryPrev" class="w-9 h-9 shrink-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white flex items-center justify-center transition" title="Предыдущий файл">
+              <i class="fa-solid fa-chevron-left text-xs"></i>
             </button>
-            <button id="viewTabFrame" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition">
-              <i class="fa-solid fa-window-maximize"></i> Google Drive Фрейм
+            <span id="galleryCounter" class="text-[11px] mono text-slate-400 px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 whitespace-nowrap">1 из 1</span>
+            <button id="galleryNext" class="w-9 h-9 shrink-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white flex items-center justify-center transition" title="Следующий файл">
+              <i class="fa-solid fa-chevron-right text-xs"></i>
             </button>
           </div>
-        </div>
 
-        <div id="mediaContainer" class="w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex flex-col items-center justify-center min-h-[240px] relative"></div>
+          <div id="galleryThumbs" class="hidden gap-2 mt-3 overflow-x-auto pb-1 custom-scroll"></div>
+        </div>
 
         <div id="drivePermissionAlert" class="hidden p-3 rounded-xl bg-amber-950/40 border border-amber-900/50 text-amber-200 text-xs">
           <div class="flex items-start gap-2">
@@ -320,7 +326,8 @@
         currentCoord: { x: 0, y: 0 },
         freehandPoints: [],
         activeViewMarker: null,
-        activeViewMode: 'image'
+        activeViewIndex: 0,
+        galleryRenderId: 0
       };
 
       const viewport = document.getElementById('canvasViewport');
@@ -345,13 +352,16 @@
       const customConfirmModal = document.getElementById('customConfirmModal');
       const localMediaInput = document.getElementById('localMediaInput');
       const localFileInfo = document.getElementById('localFileInfo');
-      const inputMediaUrl = document.getElementById('inputMediaUrl');
+      const mediaRowsEl = document.getElementById('mediaRows');
+      const addMediaRowBtn = document.getElementById('addMediaRowBtn');
 
-      const viewModeBar = document.getElementById('viewModeBar');
-      const viewTabImage = document.getElementById('viewTabImage');
-      const viewTabFrame = document.getElementById('viewTabFrame');
       const mediaContainer = document.getElementById('mediaContainer');
       const drivePermissionAlert = document.getElementById('drivePermissionAlert');
+      const galleryControls = document.getElementById('galleryControls');
+      const galleryPrev = document.getElementById('galleryPrev');
+      const galleryNext = document.getElementById('galleryNext');
+      const galleryCounter = document.getElementById('galleryCounter');
+      const galleryThumbs = document.getElementById('galleryThumbs');
 
       function init() {
         resizeCanvas();
@@ -588,7 +598,7 @@
               <p class="text-[11px] text-slate-400 line-clamp-1">${m.description || 'Без описания'}</p>
               <div class="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
                 <span><i class="fa-solid fa-location-crosshairs text-[9px]"></i> ${Math.round(m.x)}, ${Math.round(m.y)}</span>
-                ${m.mediaUrl ? '<span class="text-indigo-400"><i class="fa-solid fa-photo-film"></i> Медиа</span>' : ''}
+                ${(m.media && m.media.length) ? `<span class="text-indigo-400"><i class="fa-solid fa-photo-film"></i> Медиа: ${m.media.length}</span>` : ''}
               </div>
             </div>
           `;
@@ -740,12 +750,22 @@
         });
 
         localMediaInput.addEventListener('change', handleLocalFileUpload);
+        addMediaRowBtn.addEventListener('click', () => {
+          mediaRowsEl.appendChild(makeMediaRow({ url: '', type: 'image' }));
+          updateMediaRowsEmpty();
+        });
 
-        viewTabImage.addEventListener('click', () => setModalViewMode('image'));
-        viewTabFrame.addEventListener('click', () => setModalViewMode('frame'));
+        galleryPrev.addEventListener('click', () => gallerySelect(state.activeViewIndex - 1));
+        galleryNext.addEventListener('click', () => gallerySelect(state.activeViewIndex + 1));
 
         window.addEventListener('keydown', (e) => {
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+          if (!viewModal.classList.contains('hidden') && state.activeViewMarker) {
+            const media = state.activeViewMarker.media || [];
+            if (media.length > 1 && e.key === 'ArrowLeft') { gallerySelect(state.activeViewIndex - 1); return; }
+            if (media.length > 1 && e.key === 'ArrowRight') { gallerySelect(state.activeViewIndex + 1); return; }
+            if (e.key === 'Escape') { viewModal.classList.add('hidden'); return; }
+          }
           if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
             undoAction();
           } else if (e.key === 'l' || e.key === 'L') {
@@ -763,16 +783,26 @@
       }
 
       function handleLocalFileUpload(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
 
-        const reader = new FileReader();
-        reader.onload = function (event) {
-          inputMediaUrl.value = event.target.result;
-          localFileInfo.textContent = `Выбран файл: ${file.name} (${Math.round(file.size / 1024)} KB)`;
-          localFileInfo.classList.remove('hidden');
-        };
-        reader.readAsDataURL(file);
+        let done = 0;
+        const total = files.length;
+
+        files.forEach(file => {
+          const reader = new FileReader();
+          reader.onload = function (event) {
+            const dataUrl = event.target.result;
+            mediaRowsEl.appendChild(makeMediaRow({ url: dataUrl, type: 'image' }));
+            updateMediaRowsEmpty();
+            done++;
+            localFileInfo.textContent = `Добавлено файлов: ${done} из ${total}`;
+            localFileInfo.classList.remove('hidden');
+          };
+          reader.readAsDataURL(file);
+        });
+
+        e.target.value = '';
       }
 
       function selectTool(toolName) {
@@ -973,7 +1003,7 @@
         document.getElementById('displayCoords').value = `X: ${Math.round(x)}, Y: ${Math.round(y)}`;
         document.getElementById('inputTitle').value = '';
         document.getElementById('inputDescription').value = '';
-        inputMediaUrl.value = '';
+        renderMediaRows([]);
         localFileInfo.classList.add('hidden');
         localFileInfo.textContent = '';
         localMediaInput.value = '';
@@ -990,7 +1020,7 @@
         document.getElementById('displayCoords').value = `X: ${Math.round(marker.x)}, Y: ${Math.round(marker.y)}`;
         document.getElementById('inputTitle').value = marker.title;
         document.getElementById('inputDescription').value = marker.description || '';
-        inputMediaUrl.value = marker.mediaUrl || '';
+        renderMediaRows(marker.media || []);
         localFileInfo.classList.add('hidden');
         localFileInfo.textContent = '';
         localMediaInput.value = '';
@@ -1010,13 +1040,13 @@
         const y = parseFloat(document.getElementById('markerCoordY').value);
         const title = document.getElementById('inputTitle').value.trim();
         const description = document.getElementById('inputDescription').value.trim();
-        const mediaUrl = inputMediaUrl.value.trim();
+        const media = collectMediaRows();
         const status = document.getElementById('inputStatus').value;
 
         if (id) {
           const index = state.markers.findIndex(m => m.id === id);
           if (index !== -1) {
-            state.markers[index] = { ...state.markers[index], title, description, mediaUrl, status };
+            state.markers[index] = { ...state.markers[index], title, description, media, status };
           }
         } else {
           state.markers.push({
@@ -1024,7 +1054,7 @@
             x, y,
             title,
             description,
-            mediaUrl,
+            media,
             status,
             createdAt: new Date().toISOString()
           });
@@ -1049,90 +1079,292 @@
         });
       }
 
-      function setModalViewMode(mode) {
-        state.activeViewMode = mode;
-        if (mode === 'image') {
-          viewTabImage.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition';
-          viewTabFrame.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition';
+      function normalizeMarker(m) {
+        if (!m || typeof m !== 'object') return null;
+        const out = Object.assign({}, m);
+        if (!Array.isArray(out.media)) {
+          out.media = [];
+          if (typeof out.mediaUrl === 'string' && out.mediaUrl.trim()) {
+            out.media.push({ url: out.mediaUrl.trim(), type: detectMediaType(out.mediaUrl.trim()) });
+          }
         } else {
-          viewTabFrame.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition';
-          viewTabImage.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition';
+          out.media = out.media
+            .filter(item => item && typeof item.url === 'string' && item.url.trim())
+            .map(item => ({
+              url: item.url.trim(),
+              type: item.type === 'video' ? 'video' : 'image'
+            }));
         }
-        if (state.activeViewMarker) {
-          renderModalMedia(state.activeViewMarker);
+        delete out.mediaUrl;
+        return out;
+      }
+
+      function normalizeAllMarkers() {
+        state.markers = (state.markers || []).map(normalizeMarker).filter(Boolean);
+      }
+
+      function detectMediaType(url) {
+        if (!url) return 'image';
+        const str = String(url).trim();
+        if (str.startsWith('data:video/')) return 'video';
+        if (/\.(mp4|webm|ogv|mov|m4v)($|\?)/i.test(str)) return 'video';
+        if (/^https?:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com|rutube\.ru)/i.test(str)) return 'video';
+        return 'image';
+      }
+
+      function makeMediaRow(media) {
+        const item = media || { url: '', type: 'image' };
+        const row = document.createElement('div');
+        row.className = 'media-row flex items-center gap-1.5';
+        row.dataset.type = item.type === 'video' ? 'video' : 'image';
+        row.innerHTML = `
+          <div class="flex rounded-lg overflow-hidden border border-slate-800 shrink-0">
+            <button type="button" data-type-btn="image" class="px-2 py-1.5 text-[10px] font-semibold transition">Фото</button>
+            <button type="button" data-type-btn="video" class="px-2 py-1.5 text-[10px] font-semibold transition">Видео</button>
+          </div>
+          <input type="text" class="media-row-input flex-1 min-w-0 bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none text-xs" placeholder="https://drive.google.com/file/d/.../view или прямой URL">
+          <button type="button" class="media-row-del w-8 h-8 shrink-0 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700 transition flex items-center justify-center" title="Удалить ссылку">
+            <i class="fa-solid fa-xmark text-xs"></i>
+          </button>
+        `;
+
+        row.querySelector('.media-row-input').value = item.url || '';
+
+        const paint = () => {
+          const isVideo = row.dataset.type === 'video';
+          const imgBtn = row.querySelector('[data-type-btn="image"]');
+          const vidBtn = row.querySelector('[data-type-btn="video"]');
+          imgBtn.className = 'px-2 py-1.5 text-[10px] font-semibold transition ' + (isVideo ? 'text-slate-400 hover:text-white' : 'bg-indigo-600 text-white');
+          vidBtn.className = 'px-2 py-1.5 text-[10px] font-semibold transition ' + (isVideo ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white');
+        };
+
+        row.querySelectorAll('[data-type-btn]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            row.dataset.type = btn.dataset.typeBtn;
+            paint();
+          });
+        });
+
+        row.querySelector('.media-row-del').addEventListener('click', () => {
+          row.remove();
+          updateMediaRowsEmpty();
+        });
+
+        paint();
+        return row;
+      }
+
+      function updateMediaRowsEmpty() {
+        const hint = mediaRowsEl.querySelector('.media-empty-hint');
+        const hasRows = mediaRowsEl.querySelectorAll('.media-row').length > 0;
+        if (!hasRows && !hint) {
+          const p = document.createElement('p');
+          p.className = 'media-empty-hint text-[11px] text-slate-500 italic';
+          p.textContent = 'Медиафайлов нет. Нажмите «Добавить медиафайл».';
+          mediaRowsEl.appendChild(p);
+        } else if (hasRows && hint) {
+          hint.remove();
         }
       }
 
-      function renderModalMedia(marker) {
-        const info = resolveMediaInfo(marker.mediaUrl);
+      function renderMediaRows(media) {
+        mediaRowsEl.innerHTML = '';
+        const list = Array.isArray(media) ? media : [];
+        list.forEach(item => mediaRowsEl.appendChild(makeMediaRow(item)));
+        updateMediaRowsEmpty();
+      }
+
+      function collectMediaRows() {
+        const result = [];
+        mediaRowsEl.querySelectorAll('.media-row').forEach(row => {
+          const url = row.querySelector('.media-row-input').value.trim();
+          if (!url) return;
+          result.push({ url, type: row.dataset.type === 'video' ? 'video' : 'image' });
+        });
+        return result;
+      }
+
+      function mediaThumbSource(mediaItem) {
+        const info = resolveMediaInfo(mediaItem.url);
+        if (info.type === 'google_drive') return info.thumbnailUrl;
+        if (info.type === 'data_image') return info.url;
+        if (info.type === 'direct_image') return info.url;
+        return null;
+      }
+
+      function renderGallery() {
+        const marker = state.activeViewMarker;
+        const rid = ++state.galleryRenderId;
         mediaContainer.innerHTML = '';
         drivePermissionAlert.classList.add('hidden');
 
-        if (info.type === 'google_drive') {
-          viewModeBar.classList.remove('hidden');
-          drivePermissionAlert.classList.remove('hidden');
+        if (!marker) return;
 
-          if (state.activeViewMode === 'image') {
-            const img = document.createElement('img');
-            img.referrerPolicy = 'no-referrer';
-            img.crossOrigin = 'anonymous';
-            img.src = info.lh3Url;
-            img.alt = marker.title;
-            img.className = 'max-h-[62vh] w-auto max-w-full object-contain rounded-lg shadow-lg';
+        const media = marker.media || [];
 
-            img.onerror = function () {
-              if (img.src !== info.thumbnailUrl) {
-                img.src = info.thumbnailUrl;
-              } else {
-                setModalViewMode('frame');
-              }
-            };
-            mediaContainer.appendChild(img);
-          } else {
-            mediaContainer.innerHTML = `
-              <div class="relative w-full aspect-video bg-black flex items-center justify-center">
-                <iframe src="${info.embedUrl}" class="w-full h-full border-0 rounded-xl" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
-              </div>
-            `;
-          }
+        if (media.length === 0) {
+          galleryControls.classList.add('hidden');
+          galleryControls.classList.remove('flex');
+          galleryThumbs.classList.add('hidden');
+          galleryThumbs.classList.remove('flex');
+          mediaContainer.innerHTML = `
+            <div class="py-12 text-center text-slate-500 text-xs">
+              <i class="fa-regular fa-image text-3xl mb-2 opacity-40 block"></i>
+              Нет медиафайлов
+            </div>
+          `;
           return;
         }
 
-        viewModeBar.classList.add('hidden');
+        if (state.activeViewIndex >= media.length) state.activeViewIndex = 0;
+        if (state.activeViewIndex < 0) state.activeViewIndex = media.length - 1;
 
-        if (info.type === 'data_image' || info.type === 'direct_image') {
-          mediaContainer.innerHTML = `
-            <img src="${info.url}" alt="${marker.title}" referrerpolicy="no-referrer" class="max-h-[62vh] w-auto max-w-full object-contain rounded-lg shadow-lg" onerror="this.src='https://placehold.co/800x450/1e293b/ef4444?text=Ошибка+загрузки+изображения'">
-          `;
-        } else if (info.type === 'generic_link') {
+        const current = media[state.activeViewIndex];
+        const info = resolveMediaInfo(current.url);
+        const isVideo = current.type === 'video';
+
+        if (isVideo) {
+          if (info.type === 'google_drive') {
+            mediaContainer.innerHTML = `
+              <iframe src="${info.embedUrl}" allow="autoplay; encrypted-media; fullscreen" allowfullscreen style="width:100%; height:320px; border:none;"></iframe>
+            `;
+          } else if (/\.(mp4|webm|ogv|mov|m4v)($|\?)/i.test(current.url)) {
+            mediaContainer.innerHTML = `
+              <video src="${current.url}" controls preload="metadata" class="w-full rounded-xl bg-black" style="max-height:60vh;">
+                Ваш браузер не поддерживает видео.
+              </video>
+            `;
+          } else {
+            mediaContainer.innerHTML = `
+              <div class="p-8 text-center text-slate-400">
+                <i class="fa-solid fa-video text-3xl mb-2 text-indigo-400 block"></i>
+                <p class="text-sm">Видео прикреплено внешней ссылкой</p>
+                <a href="${current.url}" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-xs">
+                  Открыть видео в новой вкладке
+                </a>
+              </div>
+            `;
+          }
+        } else if (info.type === 'google_drive') {
+          drivePermissionAlert.classList.remove('hidden');
+          const img = document.createElement('img');
+          img.referrerPolicy = 'no-referrer';
+          img.alt = marker.title;
+          img.className = 'max-h-[62vh] w-auto max-w-full object-contain rounded-lg shadow-lg';
+          img.src = info.lh3Url;
+          img.addEventListener('error', function onErr() {
+            // слайд уже могли пролистать: не затираем то, что показано сейчас
+            if (rid !== state.galleryRenderId) return;
+            if (img.src !== info.thumbnailUrl) {
+              img.src = info.thumbnailUrl;
+              return;
+            }
+            img.removeEventListener('error', onErr);
+            mediaContainer.innerHTML = `
+              <div class="p-8 text-center text-slate-400">
+                <i class="fa-solid fa-triangle-exclamation text-3xl mb-2 text-amber-400 block"></i>
+                <p class="text-sm">Фото с Google Диска не открылось</p>
+                <p class="text-[11px] text-slate-500 mt-1">Проверьте доступ «Все, у кого есть ссылка».</p>
+                <a href="${info.rawUrl}" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-xs">
+                  Открыть на Диске
+                </a>
+              </div>
+            `;
+          });
+          mediaContainer.appendChild(img);
+        } else if (info.type === 'data_image' || info.type === 'direct_image') {
+          const img = document.createElement('img');
+          img.referrerPolicy = 'no-referrer';
+          img.alt = marker.title;
+          img.className = 'max-h-[62vh] w-auto max-w-full object-contain rounded-lg shadow-lg';
+          img.addEventListener('error', () => {
+            if (rid !== state.galleryRenderId) return;
+            mediaContainer.innerHTML = `
+              <div class="p-6 text-center text-slate-500 text-xs">
+                <i class="fa-solid fa-image-slash text-2xl mb-2 opacity-50 block"></i>
+                Изображение не загрузилось
+              </div>
+            `;
+          });
+          img.src = info.url;
+          mediaContainer.appendChild(img);
+        } else {
           mediaContainer.innerHTML = `
             <div class="p-8 text-center text-slate-400">
               <i class="fa-solid fa-file-arrow-up text-3xl mb-2 text-indigo-400 block"></i>
-              <p class="text-sm">Внешний медиа-ресурс прикреплён</p>
-              <a href="${info.url}" target="_blank" class="mt-3 inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-xs">
+              <p class="text-sm">Медиа прикреплено внешней ссылкой</p>
+              <a href="${current.url}" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-xs">
                 Открыть файл в новой вкладке
               </a>
             </div>
           `;
-        } else {
-          mediaContainer.innerHTML = `
-            <div class="py-12 text-center text-slate-500 text-xs">
-              <i class="fa-regular fa-image text-3xl mb-2 opacity-40 block"></i>
-              К этой точке не прикреплены фото или видео.
-            </div>
-          `;
         }
+
+        galleryCounter.textContent = `${state.activeViewIndex + 1} из ${media.length}`;
+
+        if (media.length > 1) {
+          galleryControls.classList.remove('hidden');
+          galleryControls.classList.add('flex');
+        } else {
+          galleryControls.classList.add('hidden');
+          galleryControls.classList.remove('flex');
+        }
+
+        galleryThumbs.innerHTML = '';
+        media.forEach((item, index) => {
+          const isActive = index === state.activeViewIndex;
+          const thumb = document.createElement('button');
+          thumb.type = 'button';
+          thumb.className = 'shrink-0 w-16 h-12 rounded-lg overflow-hidden border transition ' +
+            (isActive ? 'border-indigo-500 ring-2 ring-indigo-500/40' : 'border-slate-800 hover:border-slate-600') +
+            ' bg-slate-950 flex items-center justify-center';
+
+          const src = item.type === 'video' ? null : mediaThumbSource(item);
+          if (src) {
+            const im = document.createElement('img');
+            im.src = src;
+            im.referrerPolicy = 'no-referrer';
+            im.className = 'w-full h-full object-cover';
+            im.addEventListener('error', () => {
+              im.remove();
+              thumb.innerHTML = '<i class="fa-solid fa-image text-slate-600 text-xs"></i>';
+            });
+            thumb.appendChild(im);
+          } else {
+            thumb.innerHTML = item.type === 'video'
+              ? '<i class="fa-solid fa-circle-play text-indigo-400"></i>'
+              : '<i class="fa-solid fa-image text-slate-600 text-xs"></i>';
+          }
+
+          thumb.addEventListener('click', () => gallerySelect(index));
+          galleryThumbs.appendChild(thumb);
+        });
+
+        if (media.length > 1) {
+          galleryThumbs.classList.remove('hidden');
+          galleryThumbs.classList.add('flex');
+        } else {
+          galleryThumbs.classList.add('hidden');
+          galleryThumbs.classList.remove('flex');
+        }
+      }
+
+      function gallerySelect(index) {
+        const marker = state.activeViewMarker;
+        if (!marker || !marker.media || !marker.media.length) return;
+        const len = marker.media.length;
+        state.activeViewIndex = ((index % len) + len) % len;
+        renderGallery();
       }
 
       function openViewModal(marker) {
         state.activeViewMarker = marker;
-        state.activeViewMode = 'image';
-        setModalViewMode('image');
+        state.activeViewIndex = 0;
 
         const col = statusColors[marker.status] || statusColors.info;
         document.getElementById('viewTitle').textContent = marker.title;
         document.getElementById('viewMeta').textContent = `Координаты: ${Math.round(marker.x)}, ${Math.round(marker.y)} | Статус: ${col.text}`;
-        
+
         const badge = document.getElementById('viewStatusBadge');
         badge.style.backgroundColor = col.bg;
 
@@ -1140,16 +1372,17 @@
 
         const externalLink = document.getElementById('viewExternalLink');
         const externalWrap = document.getElementById('viewExternalLinkWrap');
+        const media = marker.media || [];
 
-        if (marker.mediaUrl) {
-          const info = resolveMediaInfo(marker.mediaUrl);
+        if (media.length) {
+          const info = resolveMediaInfo(media[0].url);
           externalWrap.classList.remove('hidden');
-          externalLink.href = info.rawUrl || marker.mediaUrl;
+          externalLink.href = info.rawUrl || media[0].url;
         } else {
           externalWrap.classList.add('hidden');
         }
 
-        renderModalMedia(marker);
+        renderGallery();
         viewModal.classList.remove('hidden');
       }
 
@@ -1200,6 +1433,7 @@
             const data = JSON.parse(raw);
             state.shapes = data.shapes || [];
             state.markers = data.markers || [];
+            normalizeAllMarkers();
             return;
           }
         } catch (e) {
@@ -1221,7 +1455,10 @@
             title: 'Вентшахта №1 (Секция А)',
             status: 'critical',
             description: 'Повреждение гидроизоляционного фартука по периметру примыкания. Риск протечки при косом дожде.',
-            mediaUrl: 'https://placehold.co/1200x800/1e293b/ef4444?text=Фото:+Дефект+примыкания+вентшахты',
+            media: [
+              { url: 'https://placehold.co/1200x800/1e293b/ef4444?text=Фото:+Дефект+примыкания+вентшахты', type: 'image' },
+              { url: 'https://placehold.co/1200x800/1e293b/3b82f6?text=Фото:+Общий+вид+секции+А', type: 'image' }
+            ],
             createdAt: new Date().toISOString()
           },
           {
@@ -1231,7 +1468,10 @@
             title: 'Кровельная воронка №4',
             status: 'attention',
             description: 'Листвоуловитель засорён мелким гравием и мхом. Проведена чистка.',
-            mediaUrl: 'https://placehold.co/1200x800/1e293b/eab308?text=Фото:+Воронка+требует+чистки',
+            media: [
+              { url: 'https://placehold.co/1200x800/1e293b/eab308?text=Фото:+Воронка+требует+чистки', type: 'image' },
+              { url: 'https://placehold.co/1200x800/1e293b/22c55e?text=Фото:+Воронка+после+чистки', type: 'image' }
+            ],
             createdAt: new Date().toISOString()
           },
           {
@@ -1241,7 +1481,9 @@
             title: 'Деформационный шов',
             status: 'ok',
             description: 'Компенсатор в норме, мастика эластичная, адгезия сохранена.',
-            mediaUrl: 'https://placehold.co/1200x800/1e293b/22c55e?text=Фото:+Состояние+шва+норма',
+            media: [
+              { url: 'https://placehold.co/1200x800/1e293b/22c55e?text=Фото:+Состояние+шва+норма', type: 'image' }
+            ],
             createdAt: new Date().toISOString()
           }
         ];
@@ -1282,6 +1524,7 @@
             if (data.shapes && Array.isArray(data.shapes) && data.markers && Array.isArray(data.markers)) {
               state.shapes = data.shapes;
               state.markers = data.markers;
+              normalizeAllMarkers();
               saveData();
               updateMarkerListUI();
               centerBlueprint();
