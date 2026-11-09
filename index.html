@@ -177,9 +177,20 @@
             </select>
           </div>
           <div>
-            <label class="block text-slate-400 font-medium mb-1">Координаты</label>
-            <input type="text" id="displayCoords" readonly class="w-full bg-slate-950/50 border border-slate-800 text-slate-400 rounded-lg px-3 py-2 outline-none mono">
+            <label class="block text-slate-400 font-medium mb-1">Тип элемента</label>
+            <select id="inputKind" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none">
+              <option value="">Не указан</option>
+              <option value="лумка">Лумка</option>
+              <option value="заплатка">Заплатка</option>
+              <option value="аэратор">Аэратор</option>
+              <option value="станция">Станция</option>
+            </select>
           </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-400 font-medium mb-1">Координаты</label>
+          <input type="text" id="displayCoords" readonly class="w-full bg-slate-950/50 border border-slate-800 text-slate-400 rounded-lg px-3 py-2 outline-none mono">
         </div>
 
         <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
@@ -253,6 +264,7 @@
           <div>
             <h3 id="viewTitle" class="font-bold text-base text-white"></h3>
             <p id="viewMeta" class="text-xs text-slate-400 mono"></p>
+            <p id="viewKind" class="text-[10px] text-indigo-300 hidden"></p>
           </div>
         </div>
         <button id="closeViewModalBtn" class="text-slate-400 hover:text-white transition w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-800">
@@ -316,6 +328,21 @@
     </div>
   </div>
 
+  <div id="adminGateModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md hidden p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+      <h3 class="font-bold text-white text-base mb-1 flex items-center gap-2">
+        <i class="fa-solid fa-lock text-amber-400"></i> Вход для редактора
+      </h3>
+      <p class="text-[11px] text-slate-400 mb-4">Рисование и правка точек защищены паролем. Введите его, чтобы перейти в режим редактора.</p>
+      <input type="password" id="adminPassInput" inputmode="numeric" autocomplete="off" placeholder="пароль" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none text-center mono tracking-widest mb-2">
+      <p id="adminGateError" class="text-[11px] text-rose-400 mb-3 hidden">Неверный пароль</p>
+      <div class="flex items-center justify-end gap-2 text-xs">
+        <button type="button" id="adminGateCancel" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg">Отмена</button>
+        <button type="button" id="adminGateOk" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg">Войти</button>
+      </div>
+    </div>
+  </div>
+
   <div id="customConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm hidden p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 shadow-2xl">
       <h3 class="font-bold text-white text-base mb-2" id="confirmTitle">Подтверждение</h3>
@@ -331,6 +358,12 @@
     (function () {
       const STORAGE_KEY = 'roof_blueprint_data_v2';
 
+      // Пароль редактора. Важно понимать: это защита от случайного клика,
+      // а не от злого умысла — страница статическая, пароль виден в исходнике.
+      const EDIT_PASSWORD = '101';
+
+      const KINDS = ['лумка', 'заплатка', 'аэратор', 'станция'];
+
       const statusColors = {
         ok: { bg: '#22c55e', text: 'В норме', border: 'border-emerald-500', dot: 'bg-emerald-500' },
         attention: { bg: '#eab308', text: 'Внимание', border: 'border-yellow-500', dot: 'bg-yellow-500' },
@@ -339,7 +372,7 @@
       };
 
       let state = {
-        mode: 'admin',
+        mode: 'view',
         tool: 'line',
         snapToGrid: true,
         gridSize: 20,
@@ -403,11 +436,20 @@
       const sessionDate = document.getElementById('sessionDate');
       const sessionCounter = document.getElementById('sessionCounter');
 
+      const inputKind = document.getElementById('inputKind');
+      const viewKind = document.getElementById('viewKind');
+      const adminGateModal = document.getElementById('adminGateModal');
+      const adminPassInput = document.getElementById('adminPassInput');
+      const adminGateError = document.getElementById('adminGateError');
+      const adminGateOk = document.getElementById('adminGateOk');
+      const adminGateCancel = document.getElementById('adminGateCancel');
+
       function init() {
         resizeCanvas();
         loadSavedData();
         ensureMediaSeed();
         setupEvents();
+        switchMode('view');
         updateUI();
         centerBlueprint();
         render();
@@ -619,7 +661,7 @@
               </div>
               <div class="opacity-0 group-hover:opacity-100 transition pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white border border-slate-700 px-2.5 py-1 rounded-md text-[11px] whitespace-nowrap shadow-xl z-30">
                 <p class="font-semibold">${m.title}</p>
-                <p class="text-[9px] text-slate-400">${col.text}</p>
+                <p class="text-[9px] text-slate-400">${m.kind ? m.kind + " · " : ""}${col.text}</p>
               </div>
             </div>
           `;
@@ -666,6 +708,7 @@
               <p class="text-[11px] text-slate-400 line-clamp-1">${(lastSession && lastSession.description) || 'Без описания'}</p>
               <div class="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
                 <span><i class="fa-solid fa-location-crosshairs text-[9px]"></i> ${Math.round(m.x)}, ${Math.round(m.y)}</span>
+                ${m.kind ? `<span class="text-amber-300 uppercase tracking-wide"><i class="fa-solid fa-tag text-[9px]"></i> ${m.kind}</span>` : ''}
                 ${(m.sessions && m.sessions.length)
                   ? `<span class="text-indigo-400"><i class="fa-solid fa-photo-film"></i> Медиа: ${totalMedia(m)}</span>
                      <span class="text-emerald-400"><i class="fa-solid fa-calendar-day"></i> ${m.sessions.length} ${m.sessions.length === 1 ? 'день' : 'дн.'}</span>
@@ -784,8 +827,21 @@
           });
         });
 
-        modeAdminBtn.addEventListener('click', () => switchMode('admin'));
+        modeAdminBtn.addEventListener('click', () => {
+          if (state.mode === 'admin') return;
+          openAdminGate();
+        });
         modeViewBtn.addEventListener('click', () => switchMode('view'));
+
+        adminGateOk.addEventListener('click', submitAdminGate);
+        adminGateCancel.addEventListener('click', closeAdminGate);
+        adminPassInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); submitAdminGate(); }
+          if (e.key === 'Escape') { e.preventDefault(); closeAdminGate(); }
+        });
+        adminGateModal.addEventListener('click', (e) => {
+          if (e.target === adminGateModal) closeAdminGate();
+        });
 
         document.getElementById('zoomInBtn').addEventListener('click', () => applyZoom(1.2));
         document.getElementById('zoomOutBtn').addEventListener('click', () => applyZoom(0.83));
@@ -919,6 +975,30 @@
         state.panY = cy - world.y * state.scale;
         zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
         render();
+      }
+
+      function openAdminGate() {
+        adminPassInput.value = '';
+        adminGateError.classList.add('hidden');
+        adminGateModal.classList.remove('hidden');
+        setTimeout(() => adminPassInput.focus(), 50);
+      }
+
+      function closeAdminGate() {
+        adminGateModal.classList.add('hidden');
+        adminPassInput.value = '';
+        adminGateError.classList.add('hidden');
+      }
+
+      function submitAdminGate() {
+        if (adminPassInput.value.trim() === EDIT_PASSWORD) {
+          closeAdminGate();
+          switchMode('admin');
+        } else {
+          adminGateError.classList.remove('hidden');
+          adminPassInput.value = '';
+          adminPassInput.focus();
+        }
       }
 
       function switchMode(newMode) {
@@ -1156,6 +1236,7 @@
         localFileInfo.textContent = '';
         localMediaInput.value = '';
         document.getElementById('inputStatus').value = 'ok';
+        inputKind.value = '';
         deleteMarkerBtn.classList.add('hidden');
         markerModal.classList.remove('hidden');
       }
@@ -1179,6 +1260,7 @@
         localFileInfo.textContent = '';
         localMediaInput.value = '';
         document.getElementById('inputStatus').value = marker.status || 'ok';
+        inputKind.value = marker.kind || '';
         deleteMarkerBtn.classList.remove('hidden');
         markerModal.classList.remove('hidden');
       }
@@ -1194,6 +1276,7 @@
         const y = parseFloat(document.getElementById('markerCoordY').value);
         const title = document.getElementById('inputTitle').value.trim();
         const status = document.getElementById('inputStatus').value;
+        const kind = inputKind.value;
 
         flushEditorIntoSession();
         let sessions = state.editingSessions.slice();
@@ -1203,7 +1286,7 @@
         if (id) {
           const index = state.markers.findIndex(m => m.id === id);
           if (index !== -1) {
-            state.markers[index] = { ...state.markers[index], title, status, sessions };
+            state.markers[index] = { ...state.markers[index], title, status, kind, sessions };
           }
         } else {
           state.markers.push({
@@ -1211,6 +1294,7 @@
             x, y,
             title,
             status,
+            kind,
             sessions,
             createdAt: new Date().toISOString()
           });
@@ -1238,6 +1322,7 @@
       function normalizeMarker(m) {
         if (!m || typeof m !== 'object') return null;
         const out = Object.assign({}, m);
+        out.kind = (typeof out.kind === 'string' && KINDS.indexOf(out.kind) >= 0) ? out.kind : '';
 
         const cleanMedia = (arr) => (Array.isArray(arr) ? arr : [])
           .filter(item => item && typeof item.url === 'string' && item.url.trim())
@@ -1623,6 +1708,9 @@
         const col = statusColors[marker.status] || statusColors.info;
         document.getElementById('viewTitle').textContent = marker.title;
         document.getElementById('viewMeta').textContent = `Координаты: ${Math.round(marker.x)}, ${Math.round(marker.y)} | Статус: ${col.text}`;
+
+        viewKind.textContent = marker.kind ? ('Тип: ' + marker.kind) : '';
+        viewKind.classList.toggle('hidden', !marker.kind);
 
         const badge = document.getElementById('viewStatusBadge');
         badge.style.backgroundColor = col.bg;
