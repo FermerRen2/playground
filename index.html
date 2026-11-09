@@ -129,6 +129,11 @@
     <div id="canvasViewport" class="flex-1 w-full h-full overflow-hidden relative cursor-crosshair canvas-bg">
       <canvas id="roofCanvas" class="block absolute top-0 left-0"></canvas>
       <div id="markerOverlay" class="absolute top-0 left-0 pointer-events-none"></div>
+
+      <div id="kindLegend" class="absolute bottom-3 left-3 z-20 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 py-2 pointer-events-none">
+        <p class="text-[9px] uppercase tracking-wider text-slate-500 mb-1.5">Типы элементов</p>
+        <div id="kindLegendItems" class="flex flex-col gap-1"></div>
+      </div>
     </div>
 
     <aside id="markerListPanel" class="w-80 border-l border-slate-800 bg-slate-900/90 backdrop-blur z-10 flex flex-col hidden lg:flex">
@@ -180,10 +185,6 @@
             <label class="block text-slate-400 font-medium mb-1">Тип элемента</label>
             <select id="inputKind" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none">
               <option value="">Не указан</option>
-              <option value="лумка">Лумка</option>
-              <option value="заплатка">Заплатка</option>
-              <option value="аэратор">Аэратор</option>
-              <option value="станция">Станция</option>
             </select>
           </div>
         </div>
@@ -362,7 +363,47 @@
       // а не от злого умысла — страница статическая, пароль виден в исходнике.
       const EDIT_PASSWORD = '101';
 
-      const KINDS = ['лумка', 'заплатка', 'аэратор', 'станция'];
+      // Типы элементов: значок на схеме, название в интерфейсе.
+      // Добавить новый тип — одна строка здесь, всё остальное подхватится само.
+      const KINDS = [
+        { id: 'лумка',    label: 'Лумка',    icon: 'fa-door-open',        hint: 'люк в кровле' },
+        { id: 'заплатка', label: 'Заплатка', icon: 'fa-bandage',          hint: 'ремонтная накладка' },
+        { id: 'аэратор',  label: 'Аэратор',  icon: 'fa-fan',              hint: 'вентиляционный выход' },
+        { id: 'станция',  label: 'Станция',  icon: 'fa-tower-broadcast',  hint: 'оборудование на кровле' }
+      ];
+
+      const DEFAULT_KIND_ICON = 'fa-location-dot';
+
+      function kindById(id) {
+        return KINDS.find(k => k.id === id) || null;
+      }
+
+      function markerIcon(marker) {
+        const kind = kindById(marker && marker.kind);
+        if (kind) return kind.icon;
+        const hasMedia = ((marker && marker.sessions) || []).some(s => s.media && s.media.length);
+        return hasMedia ? 'fa-camera' : DEFAULT_KIND_ICON;
+      }
+
+      function fillKindSelect() {
+        KINDS.forEach(k => {
+          const opt = document.createElement('option');
+          opt.value = k.id;
+          opt.textContent = k.label;
+          inputKind.appendChild(opt);
+        });
+      }
+
+      function fillKindLegend() {
+        const holder = document.getElementById('kindLegendItems');
+        if (!holder) return;
+        holder.innerHTML = KINDS.map(k =>
+          '<div class="flex items-center gap-1.5 text-[10px] text-slate-300">' +
+            '<span class="w-4 h-4 rounded flex items-center justify-center bg-slate-800 text-indigo-300"><i class="fa-solid ' + k.icon + ' text-[8px]"></i></span>' +
+            '<span>' + k.label + '</span>' +
+          '</div>'
+        ).join('');
+      }
 
       const statusColors = {
         ok: { bg: '#22c55e', text: 'В норме', border: 'border-emerald-500', dot: 'bg-emerald-500' },
@@ -448,6 +489,8 @@
         resizeCanvas();
         loadSavedData();
         ensureMediaSeed();
+        fillKindSelect();
+        fillKindLegend();
         setupEvents();
         switchMode('view');
         updateUI();
@@ -657,7 +700,7 @@
             <div class="relative flex items-center justify-center">
               <span class="absolute w-8 h-8 rounded-full opacity-60 animate-ping" style="background-color: ${col.bg}"></span>
               <div class="w-7 h-7 rounded-full shadow-lg border-2 border-white/90 flex items-center justify-center text-white text-xs font-bold transition transform group-hover:scale-125" style="background-color: ${col.bg}">
-                <i class="fa-solid fa-camera text-[11px]"></i>
+                <i class="fa-solid ${markerIcon(m)} text-[11px]"></i>
               </div>
               <div class="opacity-0 group-hover:opacity-100 transition pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white border border-slate-700 px-2.5 py-1 rounded-md text-[11px] whitespace-nowrap shadow-xl z-30">
                 <p class="font-semibold">${m.title}</p>
@@ -699,7 +742,7 @@
           const card = document.createElement('div');
           card.className = 'p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition flex items-start gap-2.5';
           card.innerHTML = `
-            <div class="w-3 h-3 rounded-full mt-1 shrink-0 ${col.dot}"></div>
+            <div class="w-6 h-6 rounded-lg mt-0.5 shrink-0 flex items-center justify-center ${col.dot}"><i class="fa-solid ${markerIcon(m)} text-[10px] text-slate-900/80"></i></div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-1">
                 <h4 class="text-xs font-semibold text-white truncate">${m.title}</h4>
@@ -1322,7 +1365,7 @@
       function normalizeMarker(m) {
         if (!m || typeof m !== 'object') return null;
         const out = Object.assign({}, m);
-        out.kind = (typeof out.kind === 'string' && KINDS.indexOf(out.kind) >= 0) ? out.kind : '';
+        out.kind = (typeof out.kind === 'string' && kindById(out.kind)) ? out.kind : '';
 
         const cleanMedia = (arr) => (Array.isArray(arr) ? arr : [])
           .filter(item => item && typeof item.url === 'string' && item.url.trim())
@@ -1709,8 +1752,14 @@
         document.getElementById('viewTitle').textContent = marker.title;
         document.getElementById('viewMeta').textContent = `Координаты: ${Math.round(marker.x)}, ${Math.round(marker.y)} | Статус: ${col.text}`;
 
-        viewKind.textContent = marker.kind ? ('Тип: ' + marker.kind) : '';
-        viewKind.classList.toggle('hidden', !marker.kind);
+        const kindInfo = kindById(marker.kind);
+        if (kindInfo) {
+          viewKind.innerHTML = '<i class="fa-solid ' + kindInfo.icon + '"></i> ' + kindInfo.label +
+            (kindInfo.hint ? ' — ' + kindInfo.hint : '');
+        } else {
+          viewKind.textContent = '';
+        }
+        viewKind.classList.toggle('hidden', !kindInfo);
 
         const badge = document.getElementById('viewStatusBadge');
         badge.style.backgroundColor = col.bg;
