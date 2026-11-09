@@ -1,77 +1,155 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PLAYGROUND — творческая площадка</title>
-  <meta name="description" content="Эксперименты, мини-игры и генеративная графика. Всё на чистом HTML, CSS и JavaScript.">
-  <meta name="theme-color" content="#05030f">
-  <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2305030f'/><circle cx='16' cy='16' r='7' fill='none' stroke='%2300f0ff' stroke-width='2.5'/><circle cx='16' cy='16' r='2' fill='%23ff2bd6'/></svg>">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101820">
+<title>RoofMap — интерактивная схема</title>
+<style>
+:root{color-scheme:dark;--bg:#101820;--panel:#17232d;--panel2:#1d2b36;--line:#2b3b48;--text:#edf4f7;--muted:#91a3af;--accent:#55c2a5;--accent2:#2c9d83;--danger:#ef7373;--warn:#e5b65c}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input,textarea,select{font:inherit}button{cursor:pointer;border:1px solid var(--line);border-radius:12px;background:var(--panel2);color:var(--text);padding:11px 14px;min-height:44px}button:active{transform:scale(.98)}button.primary{background:var(--accent2);border-color:var(--accent2);color:#061b16;font-weight:700}button.active{border-color:var(--accent);background:#21463f}button.danger{color:#ffaaaa;border-color:#754343}button:disabled{opacity:.4;cursor:not-allowed}
+header{height:62px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);background:#121d26;position:sticky;top:0;z-index:5}
+.brand{display:flex;gap:10px;align-items:center;font-weight:800;letter-spacing:.2px}.brand-mark{width:32px;height:32px;border-radius:10px;background:var(--accent);color:#09251d;display:grid;place-items:center;font-size:19px}.header-actions{display:flex;gap:8px;align-items:center}.header-actions button{min-height:38px;padding:7px 11px;font-size:13px}
+main{max-width:1500px;margin:auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}.workspace{min-width:0}.topline{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}.topline h1{font-size:19px;margin:0}.roof-select{display:flex;gap:8px;align-items:center}.roof-select select{max-width:230px}
+.canvas-wrap{height:min(70vh,760px);min-height:420px;position:relative;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#131f29;touch-action:pan-y}
+#drawing{width:100%;height:100%;display:block;touch-action:pan-y}
+.grid-bg{fill:url(#grid)}.roof-shape{fill:rgba(85,194,165,.13);stroke:var(--accent);stroke-width:3;stroke-linejoin:round}.roof-line{stroke:#a9bdc7;stroke-width:2;stroke-dasharray:8 7;fill:none}.marker{cursor:pointer}.marker circle{fill:#e7b65a;stroke:#17232d;stroke-width:4}.marker text{fill:#17232d;font-size:15px;font-weight:800;text-anchor:middle;dominant-baseline:central;pointer-events:none}.marker.selected circle{fill:#ff8585;stroke:white;stroke-width:5}
+.draw-preview{fill:rgba(85,194,165,.12);stroke:var(--accent);stroke-width:3;stroke-dasharray:7 5}
+.empty-hint{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:25px;color:var(--muted);pointer-events:none}.empty-hint strong{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.toolbar button{flex:1;min-width:100px}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px;height:max-content}.side h2{font-size:15px;margin:0 0 12px}.side p{font-size:13px;color:var(--muted);margin:0 0 12px}.stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}.stat:last-of-type{border:0}.legend{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;margin-top:12px}.dot{width:10px;height:10px;border-radius:50%;background:#e7b65a}
+.status{font-size:12px;color:var(--muted);margin-top:12px;min-height:18px}.mobile-help{display:none}
+.modal-backdrop{position:fixed;inset:0;background:#0009;z-index:20;display:none;align-items:flex-end;justify-content:center;padding:12px}.modal-backdrop.open{display:flex}.modal{background:var(--panel);border:1px solid var(--line);border-radius:20px 20px 14px 14px;padding:18px;width:min(600px,100%);max-height:88dvh;overflow:auto;box-shadow:0 20px 70px #0008}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.modal-head h2{font-size:18px;margin:0}.close{width:40px;min-width:40px;padding:0;font-size:20px}
+.field{display:grid;gap:6px;margin:12px 0}.field label{font-size:13px;color:var(--muted)}.field input,.field textarea,.field select{width:100%;border:1px solid var(--line);background:#101a22;color:var(--text);border-radius:11px;padding:12px;outline:none}.field textarea{min-height:90px;resize:vertical}.field input:focus,.field textarea:focus{border-color:var(--accent)}
+.row-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.row-actions button{flex:1}.media-list{display:grid;gap:10px;margin-top:12px}.media-item{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#111d26}.media-item iframe{width:100%;height:230px;border:0;background:#0b1218}.media-item img,.media-item video{width:100%;max-height:300px;object-fit:contain;display:block;background:#0b1218}.media-caption{padding:9px 11px;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.small{font-size:12px;color:var(--muted)}.hidden{display:none!important}
+footer{max-width:1500px;margin:0 auto;padding:0 16px 22px;color:var(--muted);font-size:12px}
+@media(max-width:850px){main{grid-template-columns:1fr;padding:10px;gap:10px}.side{display:none}.canvas-wrap{height:calc(100dvh - 245px);min-height:340px;max-height:720px;border-radius:14px}.topline{margin:2px 2px 10px}.topline h1{font-size:17px}.toolbar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 18%);padding:10px 0 calc(8px + env(safe-area-inset-bottom));z-index:4;display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.toolbar button{min-width:0;padding:10px 5px;font-size:13px}.mobile-help{display:block;font-size:12px;color:var(--muted);margin:8px 3px}.modal-backdrop{padding:0}.modal{border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:90dvh}.header-actions button{font-size:12px;padding:6px 9px}.brand{font-size:14px}}
+@media(max-width:390px){.brand span:last-child{display:none}.header-actions{gap:5px}.header-actions button{padding:6px 7px}.roof-select select{max-width:150px}}
+</style>
 </head>
 <body>
-
-  <div class="bg"></div>
-  <canvas id="stars"></canvas>
-  <div class="vignette"></div>
-  <div class="scanlines"></div>
-
-  <div class="wrap">
-
-    <header>
-      <div class="kicker">эксперименты <span>·</span> игры <span>·</span> графика</div>
-      <h1>PLAYGROUND</h1>
-      <p class="sub">
-        Куча мелких штук, сделанных ради интереса. Каждая живёт отдельно,
-        открывается в браузере и не требует ничего, кроме него.
-      </p>
-      <div class="rule"></div>
-    </header>
-
-    <main class="grid">
-
-      <a class="card" href="games/shared-field/">
-        <span class="tag live">мультиплеер</span>
-        <h2>Shared Field</h2>
-        <p>Общий экран: все, кто зашёл в комнату, видят друг друга вживую и могут толкаться.</p>
-        <span class="go">войти →</span>
-      </a>
-
-      <a class="card" href="games/case-battle/">
-        <span class="tag game">игра</span>
-        <h2>Case Battle</h2>
-        <p>Кейс-баттл на живых игроков: вскрываешь кейсы за игровые монеты, побеждает самый дорогой дроп и забирает банк.</p>
-        <span class="go">играть →</span>
-      </a>
-
-      <a class="card" href="games/neon-snake/">
-        <span class="tag game">игра</span>
-        <h2>Neon Snake</h2>
-        <p>Классическая змейка, но со светящимся следом и ускорением на каждом уровне.</p>
-        <span class="go">играть →</span>
-      </a>
-
-      <a class="card" href="games/flow-field/">
-        <span class="tag visual">графика</span>
-        <h2>Flow Field</h2>
-        <p>Тысячи частиц, ведомые невидимым полем. Мышь притягивает их к себе.</p>
-        <span class="go">смотреть →</span>
-      </a>
-
-      <div class="card soon">
-        <span class="tag soon">скоро</span>
-        <h2>Место свободно</h2>
-        <p>Следующий эксперимент появится здесь. Пока просто пустая карточка.</p>
-      </div>
-
-    </main>
-
-    <footer>
-      собрано вручную · <a href="https://github.com/FermerRen2/playground">исходники</a>
-    </footer>
-
+<header>
+  <div class="brand"><div class="brand-mark">⌂</div><span>RoofMap</span></div>
+  <div class="header-actions">
+    <button id="adminBtn" class="active">Админ: вкл.</button>
+    <button id="exportBtn">Экспорт</button>
+    <button id="importBtn">Импорт</button>
+    <input id="fileInput" type="file" accept="application/json,.json" class="hidden">
   </div>
+</header>
+<main>
+<section class="workspace">
+  <div class="topline">
+    <h1>Интерактивная схема</h1>
+    <div class="roof-select">
+      <select id="roofSelect" aria-label="Выбрать схему"></select>
+      <button id="addRoofBtn" title="Добавить схему">＋</button>
+    </div>
+  </div>
+  <div class="canvas-wrap">
+    <svg id="drawing" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet" aria-label="Схема крыши">
+      <defs><pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M 25 0 L 0 0 0 25" fill="none" stroke="#263744" stroke-width="1"/></pattern></defs>
+      <rect width="1000" height="700" class="grid-bg"/>
+      <g id="roofLayer"></g><g id="previewLayer"></g><g id="markerLayer"></g>
+    </svg>
+    <div id="emptyHint" class="empty-hint"><div><strong>Пока здесь пусто</strong>Включи режим рисования и начерти контур крыши</div></div>
+  </div>
+  <div class="mobile-help" id="helpText">Выбери действие ниже. Схема масштабируется жестом браузера.</div>
+  <div class="toolbar" id="toolbar">
+    <button id="drawBtn" class="active">✎ Рисовать</button>
+    <button id="markerBtn">＋ Метка</button>
+    <button id="selectBtn">↖ Просмотр</button>
+    <button id="undoBtn">↶ Отменить</button>
+    <button id="finishBtn" class="primary">Готово</button>
+    <button id="clearBtn" class="danger">Очистить</button>
+  </div>
+</section>
+<aside class="side">
+  <h2>Панель схемы</h2>
+  <p>Лёгкий редактор крыши. Данные хранятся в браузере и могут переноситься JSON-файлом.</p>
+  <div class="stat"><span>Контуров</span><strong id="areaCount">0</strong></div>
+  <div class="stat"><span>Медиа-меток</span><strong id="markerCount">0</strong></div>
+  <div class="stat"><span>Режим</span><strong id="modeLabel">Рисование</strong></div>
+  <div class="legend"><span class="dot"></span> Метка с материалами</div>
+  <div class="status" id="saveStatus">Изменения сохраняются в этом браузере автоматически.</div>
+</aside>
+</main>
+<footer>Прототип без сервера. Для публикации на GitHub Pages загрузите index.html. Экспортируйте JSON после изменений и храните резервную копию.</footer>
 
-  <script src="main.js"></script>
-</body>
-</html>
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-head"><h2 id="modalTitle">Новая метка</h2><button class="close" id="closeModal">×</button></div>
+    <div id="markerForm">
+      <div class="field"><label for="mTitle">Название</label><input id="mTitle" placeholder="Например: Повреждение покрытия"></div>
+      <div class="field"><label for="mComment">Комментарий</label><textarea id="mComment" placeholder="Описание, замечания, что требуется сделать..."></textarea></div>
+      <div class="field"><label for="mStatus">Статус</label><select id="mStatus"><option>Информация</option><option>Требует проверки</option><option>В работе</option><option>Выполнено</option></select></div>
+      <div class="field"><label for="mLinks">Ссылки на Google Drive или прямые ссылки — по одной на строку</label><textarea id="mLinks" placeholder="https://drive.google.com/file/d/ID/view"></textarea><div class="small">Для Drive используйте доступ «Все, у кого есть ссылка». Файлы будут встроены в карточку, если Google разрешит просмотр.</div></div>
+      <div class="row-actions"><button id="saveMarker" class="primary">Сохранить метку</button><button id="deleteMarker" class="danger hidden">Удалить</button></div>
+    </div>
+    <div id="markerView" class="hidden">
+      <div id="viewStatus" class="small"></div>
+      <p id="viewComment"></p>
+      <div class="media-list" id="mediaList"></div>
+      <div class="row-actions"><button id="editMarker" class="primary">Редактировать</button><button id="closeView">Закрыть</button></div>
+    </div>
+  </div>
+</div>
+<script>
+const STORAGE_KEY='roofmap_data_v1';
+const defaultData={version:1,roofs:[{id:'roof-1',name:'Крыша 1',areas:[],markers:[]}],activeRoofId:'roof-1'};
+let data=loadData(),admin=true,mode='draw',draft=[],editingMarkerId=null,viewingMarkerId=null,pendingPoint=null;
+const $=id=>document.getElementById(id);
+const svgNS='http://www.w3.org/2000/svg';
+function uid(){return 'id-'+Math.random().toString(36).slice(2,10)}
+function loadData(){try{const v=JSON.parse(localStorage.getItem(STORAGE_KEY));if(v&&Array.isArray(v.roofs)&&v.roofs.length)return v}catch(e){}return structuredClone(defaultData)}
+const hasLocalCopy=!!localStorage.getItem(STORAGE_KEY);
+function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data));$('saveStatus').textContent='Сохранено локально · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}catch(e){$('saveStatus').textContent='Не удалось сохранить в браузере. Сделайте экспорт JSON.'}}
+function roof(){return data.roofs.find(r=>r.id===data.activeRoofId)||data.roofs[0]}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function svgEl(tag,attrs={}){const e=document.createElementNS(svgNS,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));return e}
+function render(){
+ const r=roof();$('roofSelect').innerHTML=data.roofs.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');$('roofSelect').value=r.id;
+ $('roofLayer').innerHTML='';$('markerLayer').innerHTML='';$('previewLayer').innerHTML='';
+ r.areas.forEach((pts,i)=>{const p=svgEl('polygon',{points:pts.map(p=>p.join(',')).join(' '),class:'roof-shape'});$('roofLayer').append(p)});
+ r.markers.forEach((m,i)=>{const g=svgEl('g',{class:'marker'+(m.id===viewingMarkerId?' selected':''),transform:`translate(${m.x} ${m.y})`});g.append(svgEl('circle',{r:19}));const t=svgEl('text',{y:1});t.textContent=String(i+1);g.append(t);g.addEventListener('click',e=>{e.stopPropagation();openMarker(m.id)});$('markerLayer').append(g)});
+ $('emptyHint').style.display=(r.areas.length||r.markers.length||draft.length)?'none':'grid';
+ $('areaCount').textContent=r.areas.length;$('markerCount').textContent=r.markers.length;
+ $('modeLabel').textContent=mode==='draw'?'Рисование':mode==='marker'?'Добавление метки':'Просмотр';
+ $('drawBtn').classList.toggle('active',mode==='draw');$('markerBtn').classList.toggle('active',mode==='marker');$('selectBtn').classList.toggle('active',mode==='select');
+ $('drawBtn').disabled=!admin;$('markerBtn').disabled=!admin;$('undoBtn').disabled=!admin||!draft.length;$('finishBtn').disabled=!admin||!draft.length;$('clearBtn').disabled=!admin;
+ $('adminBtn').textContent=admin?'Админ: вкл.':'Админ: выкл.';$('addRoofBtn').disabled=!admin;
+ renderDraft();
+}
+function renderDraft(){ $('previewLayer').innerHTML='';if(!draft.length)return;const p=svgEl('polyline',{points:draft.map(p=>p.join(',')).join(' '),class:'draw-preview'});$('previewLayer').append(p);draft.forEach(([x,y])=>$('previewLayer').append(svgEl('circle',{cx:x,cy:y,r:7,fill:'#55c2a5',stroke:'#10201c','stroke-width':2})))}
+function coords(e){const pt=$('drawing').createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const p=pt.matrixTransform($('drawing').getScreenCTM().inverse());return [Math.max(0,Math.min(1000,Math.round(p.x))),Math.max(0,Math.min(700,Math.round(p.y)))]}
+$('drawing').addEventListener('click',e=>{if(e.target.closest('.marker'))return;if(!admin)return;const p=coords(e);if(mode==='draw'){draft.push(p);renderDraft();renderCounts()}else if(mode==='marker'){pendingPoint=p;editingMarkerId=null;showMarkerForm(null);}});
+function renderCounts(){$('undoBtn').disabled=!draft.length}
+function setMode(m){mode=m;draft=[];render()}
+$('drawBtn').onclick=()=>setMode('draw');$('markerBtn').onclick=()=>setMode('marker');$('selectBtn').onclick=()=>setMode('select');
+$('undoBtn').onclick=()=>{draft.pop();renderDraft();renderCounts()};
+$('finishBtn').onclick=finishPolygon;
+function finishPolygon(){if(draft.length<3){alert('Для контура нужно минимум 3 точки.');return}roof().areas.push(draft);draft=[];save();render()}
+$('drawing').addEventListener('dblclick',e=>{if(mode==='draw'&&admin){e.preventDefault();finishPolygon()}});
+$('clearBtn').onclick=()=>{if(confirm('Удалить все контуры и метки на этой схеме?')){roof().areas=[];roof().markers=[];draft=[];save();render()}};
+$('adminBtn').onclick=()=>{admin=!admin;if(!admin){draft=[];setMode('select')}render()};
+$('addRoofBtn').onclick=()=>{const name=prompt('Название новой схемы:','Крыша '+(data.roofs.length+1));if(!name)return;const r={id:uid(),name,areas:[],markers:[]};data.roofs.push(r);data.activeRoofId=r.id;save();render()};
+$('roofSelect').onchange=e=>{data.activeRoofId=e.target.value;draft=[];save();render()};
+function openModal(){$('modalBackdrop').classList.add('open')}
+function closeModal(){$('modalBackdrop').classList.remove('open');editingMarkerId=null;viewingMarkerId=null}
+$('closeModal').onclick=closeModal;$('closeView').onclick=closeModal;$('modalBackdrop').addEventListener('click',e=>{if(e.target===$('modalBackdrop'))closeModal()});
+function showMarkerForm(m){$('modalTitle').textContent=m?'Редактировать метку':'Новая метка';$('markerForm').classList.remove('hidden');$('markerView').classList.add('hidden');$('mTitle').value=m?.title||'';$('mComment').value=m?.comment||'';$('mStatus').value=m?.status||'Информация';$('mLinks').value=(m?.links||[]).join('\n');$('deleteMarker').classList.toggle('hidden',!m);openModal()}
+function openMarker(id){const m=roof().markers.find(x=>x.id===id);if(!m)return;viewingMarkerId=id;render();$('modalTitle').textContent=m.title||'Метка';$('markerForm').classList.add('hidden');$('markerView').classList.remove('hidden');$('viewStatus').textContent='Статус: '+(m.status||'Информация');$('viewComment').textContent=m.comment||'Комментарий не добавлен.';const list=$('mediaList');list.innerHTML='';(m.links||[]).forEach(url=>{const item=document.createElement('div');item.className='media-item';const embed=driveEmbed(url);if(embed){const f=document.createElement('iframe');f.src=embed;f.allow='autoplay; encrypted-media';f.allowFullscreen=true;f.loading='lazy';item.append(f)}else if(/\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(url)){const im=document.createElement('img');im.src=url;im.loading='lazy';im.alt='Медиа';item.append(im)}else if(/\.(mp4|webm|ogg)(\?.*)?$/i.test(url)){const v=document.createElement('video');v.src=url;v.controls=true;v.playsInline=true;item.append(v)}const cap=document.createElement('div');cap.className='media-caption';const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent=url;a.style.color='var(--accent)';cap.append(a);item.append(cap);list.append(item)});if(!(m.links||[]).length)list.innerHTML='<div class="small">К этой метке пока не прикреплены файлы.</div>';openModal()}
+function driveEmbed(url){try{const u=new URL(url);if(!/(^|\.)drive\.google\.com$/.test(u.hostname))return null;let id=(u.pathname.match(/\/file\/d\/([^/]+)/)||[])[1]||u.searchParams.get('id');if(!id)return null;return 'https://drive.google.com/file/d/'+encodeURIComponent(id)+'/preview'}catch(e){return null}}
+$('saveMarker').onclick=()=>{const title=$('mTitle').value.trim();if(!title){alert('Укажи название метки.');return}const links=$('mLinks').value.split(/\n+/).map(x=>x.trim()).filter(Boolean);if(links.some(x=>!/^https?:\/\//i.test(x))){alert('Каждая ссылка должна начинаться с http:// или https://');return}if(editingMarkerId){const m=roof().markers.find(x=>x.id===editingMarkerId);Object.assign(m,{title,comment:$('mComment').value.trim(),status:$('mStatus').value,links})}else{roof().markers.push({id:uid(),x:pendingPoint[0],y:pendingPoint[1],title,comment:$('mComment').value.trim(),status:$('mStatus').value,links})}save();closeModal();render()};
+$('editMarker').onclick=()=>{const m=roof().markers.find(x=>x.id===viewingMarkerId);if(!m)return;editingMarkerId=m.id;showMarkerForm(m)};
+$('deleteMarker').onclick=()=>{if(!editingMarkerId)return;if(confirm('Удалить эту метку?')){roof().markers=roof().markers.filter(x=>x.id!==editingMarkerId);save();closeModal();render()}};
+$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='roofmap-data.json';a.click();URL.revokeObjectURL(a.href)};
+$('importBtn').onclick=()=>$('fileInput').click();
+$('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const v=JSON.parse(await f.text());if(!Array.isArray(v.roofs)||!v.roofs.length)throw Error();data=v;if(!data.roofs.some(r=>r.id===data.activeRoofId))data.activeRoofId=data.roofs[0].id;save();render();alert('Данные импортированы.')}catch(err){alert('Не удалось прочитать файл. Проверьте, что это JSON-экспорт RoofMap.')}e.target.value=''};
+render();
+// На новом устройстве подхватываем опубликованный файл со схемами. Локальные правки имеют приоритет.
+if(!hasLocalCopy){fetch('./roofmap-data.json').then(r=>r.ok?r.json():null).then(v=>{if(v&&Array.isArray(v.roofs)&&v.roofs.length){data=v;if(!data.roofs.some(r=>r.id===data.activeRoofId))data.activeRoofId=data.roofs[0].id;render()}}).catch(()=>{});}
+</script>
+</body></html>
