@@ -366,10 +366,37 @@
       function init() {
         resizeCanvas();
         loadSavedData();
+        ensureMediaSeed();
         setupEvents();
         updateUI();
         centerBlueprint();
         render();
+      }
+
+      function ensureMediaSeed() {
+        try {
+          if (localStorage.getItem('roof_seed_media_added') === '1') return;
+          const seed = {
+            id: 'seed-media-1',
+            x: 560,
+            y: 420,
+            title: 'Осмотр: фото и видео',
+            status: 'attention',
+            description: 'Точка с реальными материалами с Google Диска: снимок дефекта и видеозапись осмотра.',
+            media: [
+              { url: 'https://drive.google.com/file/d/1VxuuB3ZJmNt8sthtr_8Xxz32GPJZTvsX/view?usp=drivesdk', type: 'image' },
+              { url: 'https://drive.google.com/file/d/1eRLdhvYEhZ4jXmaA5jxaNFuCmkdSJcLp/view?usp=drivesdk', type: 'video' }
+            ],
+            createdAt: new Date().toISOString()
+          };
+          if (!state.markers.some(m => m.id === seed.id)) {
+            state.markers.push(seed);
+            saveData();
+          }
+          localStorage.setItem('roof_seed_media_added', '1');
+        } catch (e) {
+          console.error('seed media error', e);
+        }
       }
 
       function resizeCanvas() {
@@ -1227,6 +1254,10 @@
           if (info.type === 'google_drive') {
             mediaContainer.innerHTML = `
               <iframe src="${info.embedUrl}" allow="autoplay; encrypted-media; fullscreen" allowfullscreen style="width:100%; height:320px; border:none;"></iframe>
+              <p class="text-[11px] text-slate-500 py-2">
+                Если плеер не открылся —
+                <a href="${info.rawUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 underline">смотреть видео на Диске</a>.
+              </p>
             `;
           } else if (/\.(mp4|webm|ogv|mov|m4v)($|\?)/i.test(current.url)) {
             mediaContainer.innerHTML = `
