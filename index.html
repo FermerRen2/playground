@@ -182,6 +182,22 @@
           </div>
         </div>
 
+        <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <label class="block text-slate-400 font-medium">День осмотра</label>
+            <div class="flex items-center gap-1.5">
+              <button type="button" id="addSessionBtn" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-semibold transition inline-flex items-center gap-1">
+                <i class="fa-solid fa-plus text-[10px]"></i> Новый день
+              </button>
+              <button type="button" id="deleteSessionBtn" class="px-2 py-1 bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700 rounded-lg text-[11px] transition" title="Удалить текущий день">
+                <i class="fa-solid fa-trash text-[10px]"></i>
+              </button>
+            </div>
+          </div>
+          <select id="sessionSelect" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none"></select>
+          <p class="text-[10px] text-slate-500">Каждый день — отдельная запись со своими фото, видео и заметками.</p>
+        </div>
+
         <div>
           <label class="block text-slate-400 font-medium mb-1">Описание / Заметки</label>
           <textarea id="inputDescription" rows="2" placeholder="Состояние мембраны, примыкания, трещины..." class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none"></textarea>
@@ -189,7 +205,7 @@
 
         <div class="space-y-2">
           <div class="flex items-center justify-between gap-2">
-            <label class="block text-slate-400 font-medium">Медиафайлы точки</label>
+            <label class="block text-slate-400 font-medium">Медиафайлы этого дня</label>
             <button type="button" id="addMediaRowBtn" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-semibold transition inline-flex items-center gap-1.5">
               <i class="fa-solid fa-plus text-[10px]"></i> Добавить медиафайл
             </button>
@@ -245,6 +261,19 @@
       </div>
 
       <div class="flex-1 overflow-y-auto p-5 space-y-4 custom-scroll">
+        <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800">
+          <button type="button" id="sessionPrev" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-semibold transition inline-flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed">
+            <i class="fa-solid fa-chevron-left text-[9px]"></i> раньше
+          </button>
+          <div class="text-center min-w-0">
+            <p id="sessionDate" class="text-[11px] font-semibold text-white truncate">—</p>
+            <p id="sessionCounter" class="text-[10px] text-slate-500 mono">1 из 1</p>
+          </div>
+          <button type="button" id="sessionNext" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-semibold transition inline-flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed">
+            позже <i class="fa-solid fa-chevron-right text-[9px]"></i>
+          </button>
+        </div>
+
         <div>
           <div id="mediaContainer" class="w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex flex-col items-center justify-center min-h-[240px] relative"></div>
 
@@ -327,7 +356,10 @@
         freehandPoints: [],
         activeViewMarker: null,
         activeViewIndex: 0,
-        galleryRenderId: 0
+        activeSessionIndex: 0,
+        galleryRenderId: 0,
+        editingSessions: [],
+        editingSessionIndex: 0
       };
 
       const viewport = document.getElementById('canvasViewport');
@@ -363,6 +395,14 @@
       const galleryCounter = document.getElementById('galleryCounter');
       const galleryThumbs = document.getElementById('galleryThumbs');
 
+      const sessionSelect = document.getElementById('sessionSelect');
+      const addSessionBtn = document.getElementById('addSessionBtn');
+      const deleteSessionBtn = document.getElementById('deleteSessionBtn');
+      const sessionPrev = document.getElementById('sessionPrev');
+      const sessionNext = document.getElementById('sessionNext');
+      const sessionDate = document.getElementById('sessionDate');
+      const sessionCounter = document.getElementById('sessionCounter');
+
       function init() {
         resizeCanvas();
         loadSavedData();
@@ -390,7 +430,7 @@
             createdAt: new Date().toISOString()
           };
           if (!state.markers.some(m => m.id === seed.id)) {
-            state.markers.push(seed);
+            state.markers.push(normalizeMarker(seed));
             saveData();
           }
           localStorage.setItem('roof_seed_media_added', '1');
@@ -613,6 +653,7 @@
 
         state.markers.forEach((m, idx) => {
           const col = statusColors[m.status] || statusColors.info;
+          const lastSession = (m.sessions && m.sessions.length) ? m.sessions[m.sessions.length - 1] : null;
           const card = document.createElement('div');
           card.className = 'p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition flex items-start gap-2.5';
           card.innerHTML = `
@@ -622,10 +663,14 @@
                 <h4 class="text-xs font-semibold text-white truncate">${m.title}</h4>
                 <span class="text-[10px] text-slate-500 mono shrink-0">#${idx + 1}</span>
               </div>
-              <p class="text-[11px] text-slate-400 line-clamp-1">${m.description || 'Без описания'}</p>
+              <p class="text-[11px] text-slate-400 line-clamp-1">${(lastSession && lastSession.description) || 'Без описания'}</p>
               <div class="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
                 <span><i class="fa-solid fa-location-crosshairs text-[9px]"></i> ${Math.round(m.x)}, ${Math.round(m.y)}</span>
-                ${(m.media && m.media.length) ? `<span class="text-indigo-400"><i class="fa-solid fa-photo-film"></i> Медиа: ${m.media.length}</span>` : ''}
+                ${(m.sessions && m.sessions.length)
+                  ? `<span class="text-indigo-400"><i class="fa-solid fa-photo-film"></i> Медиа: ${totalMedia(m)}</span>
+                     <span class="text-emerald-400"><i class="fa-solid fa-calendar-day"></i> ${m.sessions.length} ${m.sessions.length === 1 ? 'день' : 'дн.'}</span>
+                     <span class="text-slate-500"><i class="fa-regular fa-clock"></i> ${dayLabel(m.sessions[m.sessions.length - 1].date)}</span>`
+                  : ''}
               </div>
             </div>
           `;
@@ -784,6 +829,34 @@
 
         galleryPrev.addEventListener('click', () => gallerySelect(state.activeViewIndex - 1));
         galleryNext.addEventListener('click', () => gallerySelect(state.activeViewIndex + 1));
+
+        sessionPrev.addEventListener('click', () => moveViewSession(-1));
+        sessionNext.addEventListener('click', () => moveViewSession(1));
+
+        sessionSelect.addEventListener('change', () => {
+          flushEditorIntoSession();
+          state.editingSessionIndex = parseInt(sessionSelect.value, 10) || 0;
+          loadSessionIntoEditor();
+        });
+
+        addSessionBtn.addEventListener('click', () => {
+          flushEditorIntoSession();
+          state.editingSessions.push(newSession());
+          state.editingSessionIndex = state.editingSessions.length - 1;
+          loadSessionIntoEditor();
+        });
+
+        deleteSessionBtn.addEventListener('click', () => {
+          if (state.editingSessions.length < 2) return;
+          showConfirm('Удаление дня', 'Удалить текущий день со всеми его файлами и заметками?', () => {
+            flushEditorIntoSession();
+            state.editingSessions.splice(state.editingSessionIndex, 1);
+            if (state.editingSessionIndex >= state.editingSessions.length) {
+              state.editingSessionIndex = state.editingSessions.length - 1;
+            }
+            loadSessionIntoEditor();
+          });
+        });
 
         window.addEventListener('keydown', (e) => {
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -1022,6 +1095,53 @@
         }
       }
 
+      function newSession() {
+        return {
+          id: 's_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+          date: new Date().toISOString(),
+          description: '',
+          media: []
+        };
+      }
+
+      function currentEditingSession() {
+        if (!state.editingSessions.length) {
+          state.editingSessions.push(newSession());
+          state.editingSessionIndex = 0;
+        }
+        if (state.editingSessionIndex >= state.editingSessions.length) state.editingSessionIndex = state.editingSessions.length - 1;
+        if (state.editingSessionIndex < 0) state.editingSessionIndex = 0;
+        return state.editingSessions[state.editingSessionIndex];
+      }
+
+      function flushEditorIntoSession() {
+        if (!state.editingSessions.length) return;
+        const s = state.editingSessions[state.editingSessionIndex];
+        if (!s) return;
+        s.description = document.getElementById('inputDescription').value.trim();
+        s.media = collectMediaRows();
+      }
+
+      function refreshSessionSelect() {
+        sessionSelect.innerHTML = '';
+        state.editingSessions.forEach((s, i) => {
+          const opt = document.createElement('option');
+          const files = (s.media && s.media.length) || 0;
+          opt.value = String(i);
+          opt.textContent = formatDate(s.date) + ' · файлов: ' + files;
+          sessionSelect.appendChild(opt);
+        });
+        sessionSelect.value = String(state.editingSessionIndex);
+        deleteSessionBtn.classList.toggle('hidden', state.editingSessions.length < 2);
+      }
+
+      function loadSessionIntoEditor() {
+        const s = currentEditingSession();
+        document.getElementById('inputDescription').value = s.description || '';
+        renderMediaRows(s.media || []);
+        refreshSessionSelect();
+      }
+
       function openCreateMarkerModal(x, y) {
         document.getElementById('modalTitle').textContent = 'Новая точка на кровле';
         document.getElementById('markerId').value = '';
@@ -1029,8 +1149,9 @@
         document.getElementById('markerCoordY').value = y;
         document.getElementById('displayCoords').value = `X: ${Math.round(x)}, Y: ${Math.round(y)}`;
         document.getElementById('inputTitle').value = '';
-        document.getElementById('inputDescription').value = '';
-        renderMediaRows([]);
+        state.editingSessions = [newSession()];
+        state.editingSessionIndex = 0;
+        loadSessionIntoEditor();
         localFileInfo.classList.add('hidden');
         localFileInfo.textContent = '';
         localMediaInput.value = '';
@@ -1046,8 +1167,14 @@
         document.getElementById('markerCoordY').value = marker.y;
         document.getElementById('displayCoords').value = `X: ${Math.round(marker.x)}, Y: ${Math.round(marker.y)}`;
         document.getElementById('inputTitle').value = marker.title;
-        document.getElementById('inputDescription').value = marker.description || '';
-        renderMediaRows(marker.media || []);
+
+        const sessions = (marker.sessions && marker.sessions.length)
+          ? JSON.parse(JSON.stringify(marker.sessions))
+          : [newSession()];
+        state.editingSessions = sessions;
+        state.editingSessionIndex = sessions.length - 1;
+        loadSessionIntoEditor();
+
         localFileInfo.classList.add('hidden');
         localFileInfo.textContent = '';
         localMediaInput.value = '';
@@ -1066,23 +1193,25 @@
         const x = parseFloat(document.getElementById('markerCoordX').value);
         const y = parseFloat(document.getElementById('markerCoordY').value);
         const title = document.getElementById('inputTitle').value.trim();
-        const description = document.getElementById('inputDescription').value.trim();
-        const media = collectMediaRows();
         const status = document.getElementById('inputStatus').value;
+
+        flushEditorIntoSession();
+        let sessions = state.editingSessions.slice();
+        if (!sessions.length) sessions = [newSession()];
+        sessions.sort((a, b) => new Date(a.date) - new Date(b.date));
 
         if (id) {
           const index = state.markers.findIndex(m => m.id === id);
           if (index !== -1) {
-            state.markers[index] = { ...state.markers[index], title, description, media, status };
+            state.markers[index] = { ...state.markers[index], title, status, sessions };
           }
         } else {
           state.markers.push({
             id: 'm_' + Date.now(),
             x, y,
             title,
-            description,
-            media,
             status,
+            sessions,
             createdAt: new Date().toISOString()
           });
         }
@@ -1109,21 +1238,63 @@
       function normalizeMarker(m) {
         if (!m || typeof m !== 'object') return null;
         const out = Object.assign({}, m);
-        if (!Array.isArray(out.media)) {
-          out.media = [];
-          if (typeof out.mediaUrl === 'string' && out.mediaUrl.trim()) {
-            out.media.push({ url: out.mediaUrl.trim(), type: detectMediaType(out.mediaUrl.trim()) });
-          }
+
+        const cleanMedia = (arr) => (Array.isArray(arr) ? arr : [])
+          .filter(item => item && typeof item.url === 'string' && item.url.trim())
+          .map(item => ({ url: item.url.trim(), type: item.type === 'video' ? 'video' : 'image' }));
+
+        if (Array.isArray(out.sessions) && out.sessions.length) {
+          out.sessions = out.sessions.map((s, i) => ({
+            id: s && s.id ? s.id : 's_' + i + '_' + Date.now(),
+            date: (s && s.date) || new Date().toISOString(),
+            description: (s && typeof s.description === 'string') ? s.description : '',
+            media: cleanMedia(s && s.media)
+          }));
         } else {
-          out.media = out.media
-            .filter(item => item && typeof item.url === 'string' && item.url.trim())
-            .map(item => ({
-              url: item.url.trim(),
-              type: item.type === 'video' ? 'video' : 'image'
-            }));
+          let legacyMedia = cleanMedia(out.media);
+          if (!legacyMedia.length && typeof out.mediaUrl === 'string' && out.mediaUrl.trim()) {
+            legacyMedia = [{ url: out.mediaUrl.trim(), type: detectMediaType(out.mediaUrl.trim()) }];
+          }
+          out.sessions = [{
+            id: 's_legacy_' + (out.id || Date.now()),
+            date: out.createdAt || new Date().toISOString(),
+            description: typeof out.description === 'string' ? out.description : '',
+            media: legacyMedia
+          }];
         }
+
+        out.sessions.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        delete out.media;
         delete out.mediaUrl;
+        delete out.description;
         return out;
+      }
+
+      function formatDate(iso) {
+        try {
+          const d = new Date(iso);
+          if (isNaN(d.getTime())) return String(iso || '—');
+          const pad = n => String(n).padStart(2, '0');
+          return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        } catch (e) {
+          return String(iso || '—');
+        }
+      }
+
+      function dayLabel(iso) {
+        try {
+          const d = new Date(iso);
+          if (isNaN(d.getTime())) return String(iso || '');
+          const pad = n => String(n).padStart(2, '0');
+          return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function totalMedia(marker) {
+        return (marker.sessions || []).reduce((sum, s) => sum + ((s.media && s.media.length) || 0), 0);
       }
 
       function normalizeAllMarkers() {
@@ -1219,6 +1390,58 @@
         return null;
       }
 
+      function currentViewSession() {
+        const marker = state.activeViewMarker;
+        if (!marker || !marker.sessions || !marker.sessions.length) return null;
+        if (state.activeSessionIndex >= marker.sessions.length) state.activeSessionIndex = marker.sessions.length - 1;
+        if (state.activeSessionIndex < 0) state.activeSessionIndex = 0;
+        return marker.sessions[state.activeSessionIndex];
+      }
+
+      function renderSessionNav() {
+        const marker = state.activeViewMarker;
+        const sessions = (marker && marker.sessions) || [];
+        const total = sessions.length;
+
+        if (!total) {
+          sessionDate.textContent = '—';
+          sessionCounter.textContent = '0 из 0';
+          sessionPrev.disabled = true;
+          sessionNext.disabled = true;
+          return;
+        }
+
+        const s = currentViewSession();
+        sessionDate.textContent = formatDate(s.date);
+        sessionCounter.textContent = `${state.activeSessionIndex + 1} из ${total}`;
+        sessionPrev.disabled = state.activeSessionIndex <= 0;
+        sessionNext.disabled = state.activeSessionIndex >= total - 1;
+      }
+
+      function moveViewSession(delta) {
+        const marker = state.activeViewMarker;
+        const sessions = (marker && marker.sessions) || [];
+        if (sessions.length < 2) return;
+        const next = state.activeSessionIndex + delta;
+        if (next < 0 || next >= sessions.length) return;
+        state.activeSessionIndex = next;
+        state.activeViewIndex = 0;
+        renderSessionNav();
+        const s = currentViewSession();
+        document.getElementById('viewDescription').textContent = (s && s.description) || 'Описание отсутствует.';
+        const media = (s && s.media) || [];
+        const externalLink = document.getElementById('viewExternalLink');
+        const externalWrap = document.getElementById('viewExternalLinkWrap');
+        if (media.length) {
+          const info = resolveMediaInfo(media[0].url);
+          externalWrap.classList.remove('hidden');
+          externalLink.href = info.rawUrl || media[0].url;
+        } else {
+          externalWrap.classList.add('hidden');
+        }
+        renderGallery();
+      }
+
       function renderGallery() {
         const marker = state.activeViewMarker;
         const rid = ++state.galleryRenderId;
@@ -1227,7 +1450,8 @@
 
         if (!marker) return;
 
-        const media = marker.media || [];
+        const viewSession = currentViewSession();
+        const media = (viewSession && viewSession.media) || [];
 
         if (media.length === 0) {
           galleryControls.classList.add('hidden');
@@ -1237,7 +1461,7 @@
           mediaContainer.innerHTML = `
             <div class="py-12 text-center text-slate-500 text-xs">
               <i class="fa-regular fa-image text-3xl mb-2 opacity-40 block"></i>
-              Нет медиафайлов
+              Нет медиафайлов за этот день
             </div>
           `;
           return;
@@ -1382,8 +1606,11 @@
 
       function gallerySelect(index) {
         const marker = state.activeViewMarker;
-        if (!marker || !marker.media || !marker.media.length) return;
-        const len = marker.media.length;
+        const session = currentViewSession();
+        if (!marker || !session) return;
+        const media = session.media || [];
+        if (!media.length) return;
+        const len = media.length;
         state.activeViewIndex = ((index % len) + len) % len;
         renderGallery();
       }
@@ -1391,6 +1618,7 @@
       function openViewModal(marker) {
         state.activeViewMarker = marker;
         state.activeViewIndex = 0;
+        state.activeSessionIndex = Math.max(0, ((marker.sessions && marker.sessions.length) || 1) - 1);
 
         const col = statusColors[marker.status] || statusColors.info;
         document.getElementById('viewTitle').textContent = marker.title;
@@ -1399,11 +1627,12 @@
         const badge = document.getElementById('viewStatusBadge');
         badge.style.backgroundColor = col.bg;
 
-        document.getElementById('viewDescription').textContent = marker.description || 'Описание отсутствует.';
+        const viewSession = currentViewSession();
+        document.getElementById('viewDescription').textContent = (viewSession && viewSession.description) || 'Описание отсутствует.';
 
         const externalLink = document.getElementById('viewExternalLink');
         const externalWrap = document.getElementById('viewExternalLinkWrap');
-        const media = marker.media || [];
+        const media = (viewSession && viewSession.media) || [];
 
         if (media.length) {
           const info = resolveMediaInfo(media[0].url);
@@ -1413,6 +1642,7 @@
           externalWrap.classList.add('hidden');
         }
 
+        renderSessionNav();
         renderGallery();
         viewModal.classList.remove('hidden');
       }
@@ -1518,6 +1748,8 @@
             createdAt: new Date().toISOString()
           }
         ];
+
+        normalizeAllMarkers();
       }
 
       function updateUI() {
