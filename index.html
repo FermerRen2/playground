@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Roof Blueprint & Marker Map</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230f172a'/><path d='M5 19 L16 9 L27 19' fill='none' stroke='%236366f1' stroke-width='2.6' stroke-linejoin='round'/><circle cx='21' cy='22' r='3.4' fill='%23f59e0b'/></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
@@ -35,6 +35,126 @@
       background: #374151;
       border-radius: 4px;
     }
+
+    /* ---------- телефон ---------- */
+    /* Свои жесты важнее браузерных: без этого страница уезжает вместе с картой */
+    html, body {
+      height: 100%;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #roofCanvas {
+      touch-action: none;
+    }
+
+    @media (max-width: 767px) {
+      body {
+        height: 100dvh;
+      }
+
+      header {
+        height: auto !important;
+        min-height: 52px;
+        padding: 6px 8px !important;
+        gap: 6px;
+        flex-wrap: wrap;
+        row-gap: 4px;
+      }
+      header h1 {
+        font-size: 12px !important;
+      }
+      header .h-6 {
+        display: none !important;
+      }
+      #modeAdminBtn, #modeViewBtn {
+        padding: 6px 8px !important;
+        font-size: 11px;
+      }
+      #modeAdminBtn span, #modeViewBtn span {
+        display: none;
+      }
+
+      /* панель инструментов уходит вниз под большой палец */
+      #toolbar {
+        top: auto !important;
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+        left: 10px !important;
+        right: 10px !important;
+        flex-direction: row !important;
+        justify-content: space-between;
+        gap: 6px;
+        padding: 8px !important;
+        border-radius: 16px !important;
+      }
+      #toolbar .tool-btn {
+        width: 44px !important;
+        height: 44px !important;
+      }
+
+      #kindLegend {
+        display: none !important;
+      }
+
+      /* список точек — выезжает на весь экран по кнопке */
+      #markerListPanel {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100% !important;
+        z-index: 45 !important;
+        /* класс hidden у панели рассчитан на десктоп: на телефоне он прятал её навсегда */
+        display: flex !important;
+        flex-direction: column !important;
+      }
+      #markerListPanel.mobile-hidden {
+        display: none !important;
+      }
+
+      /* карточки и окна — на весь экран, без обрезков */
+      #markerModal > div,
+      #viewModal > div,
+      #adminGateModal > div,
+      #customConfirmModal > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        border: none !important;
+      }
+      #markerModal, #viewModal, #adminGateModal, #customConfirmModal {
+        padding: 0 !important;
+      }
+
+      /* 16px обязателен: на меньшем шрифте iOS зумит страницу при фокусе */
+      #markerModal input,
+      #markerModal select,
+      #markerModal textarea,
+      #adminGateModal input {
+        font-size: 16px !important;
+      }
+
+      #mediaContainer img {
+        max-height: 42vh !important;
+      }
+      #mediaContainer iframe {
+        height: 34vh !important;
+      }
+      #galleryPrev, #galleryNext {
+        width: 44px !important;
+        height: 44px !important;
+      }
+      #galleryThumbs button {
+        width: 60px !important;
+        height: 46px !important;
+      }
+      .media-row {
+        flex-wrap: wrap;
+      }
+      .media-row .media-row-input {
+        order: 3;
+        flex-basis: 100%;
+      }
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen w-screen overflow-hidden flex flex-col">
@@ -56,10 +176,10 @@
     <div class="flex items-center gap-3">
       <div class="flex items-center bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
         <button id="modeAdminBtn" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-indigo-600 text-white shadow-sm">
-          <i class="fa-solid fa-pen-ruler"></i> Админ (Чертёж)
+          <i class="fa-solid fa-pen-ruler"></i> <span>Админ (Чертёж)</span>
         </button>
         <button id="modeViewBtn" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition">
-          <i class="fa-solid fa-eye"></i> Просмотр (Инспекция)
+          <i class="fa-solid fa-eye"></i> <span>Просмотр (Инспекция)</span>
         </button>
       </div>
 
@@ -86,6 +206,9 @@
           <i class="fa-solid fa-upload"></i> <span class="hidden sm:inline">Импорт</span>
           <input type="file" id="importFile" accept=".json" class="hidden">
         </label>
+        <button id="listToggleBtn" title="Список точек" class="lg:hidden px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs text-slate-200 flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-list-check"></i> <span class="hidden xs:inline">Точки</span>
+        </button>
       </div>
     </div>
   </header>
@@ -412,6 +535,8 @@
         info: { bg: '#3b82f6', text: 'Замер / Инфо', border: 'border-blue-500', dot: 'bg-blue-500' }
       };
 
+      let pinch = null;
+
       let state = {
         mode: 'view',
         tool: 'line',
@@ -496,6 +621,30 @@
         updateUI();
         centerBlueprint();
         render();
+        setupMobileList();
+      }
+
+      function isPhone() {
+        return window.innerWidth < 1024;
+      }
+
+      function setupMobileList() {
+        const panel = document.getElementById('markerListPanel');
+        const toggle = document.getElementById('listToggleBtn');
+        if (!panel || !toggle) return;
+
+        // на телефоне список точек не влезает рядом с картой — прячем под кнопку
+        panel.classList.toggle('mobile-hidden', isPhone());
+
+        toggle.addEventListener('click', () => {
+          panel.classList.toggle('mobile-hidden');
+        });
+      }
+
+      function closeMobileList() {
+        if (!isPhone()) return;
+        const panel = document.getElementById('markerListPanel');
+        if (panel) panel.classList.add('mobile-hidden');
       }
 
       function ensureMediaSeed() {
@@ -531,10 +680,17 @@
         markerOverlay.style.height = viewport.clientHeight + 'px';
       }
 
-      window.addEventListener('resize', () => {
+      function handleViewportChange() {
         resizeCanvas();
         render();
-      });
+      }
+
+      // на телефоне адресная строка меняет высоту экрана — холст должен это учитывать
+      window.addEventListener('resize', handleViewportChange);
+      window.addEventListener('orientationchange', () => setTimeout(handleViewportChange, 250));
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', handleViewportChange);
+      }
 
       function extractDriveId(url) {
         if (!url) return null;
@@ -763,6 +919,7 @@
 
           card.addEventListener('click', () => {
             focusOnPoint(m.x, m.y);
+            closeMobileList();
             if (state.mode === 'view') {
               openViewModal(m);
             }
@@ -1186,16 +1343,50 @@
 
       function onTouchStart(e) {
         if (e.touches.length === 1) {
+          pinch = null;
           const touch = e.touches[0];
           onPointerDown({
             button: 0,
             clientX: touch.clientX,
             clientY: touch.clientY
           });
+        } else if (e.touches.length === 2) {
+          // два пальца — это масштаб, а не рисование
+          state.isDrawing = false;
+          state.isPanning = false;
+          state.freehandPoints = [];
+          const a = e.touches[0];
+          const b = e.touches[1];
+          pinch = {
+            dist: Math.max(1, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)),
+            scale: state.scale
+          };
+          if (e.cancelable) e.preventDefault();
         }
       }
 
       function onTouchMove(e) {
+        if (e.touches.length === 2 && pinch) {
+          if (e.cancelable) e.preventDefault();
+          const a = e.touches[0];
+          const b = e.touches[1];
+          const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+          const rect = viewport.getBoundingClientRect();
+          const cx = (a.clientX + b.clientX) / 2 - rect.left;
+          const cy = (a.clientY + b.clientY) / 2 - rect.top;
+
+          const newScale = Math.min(Math.max(pinch.scale * (dist / pinch.dist), 0.2), 5);
+          const world = screenToWorld(cx, cy);
+
+          state.panX = cx - world.x * newScale;
+          state.panY = cy - world.y * newScale;
+          state.scale = newScale;
+
+          zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
+          render();
+          return;
+        }
+
         if (e.touches.length === 1) {
           const touch = e.touches[0];
           onPointerMove({
@@ -1206,6 +1397,7 @@
       }
 
       function onTouchEnd() {
+        pinch = null;
         onPointerUp();
       }
 
