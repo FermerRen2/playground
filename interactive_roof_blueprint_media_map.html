@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roof Blueprint & Marker Map</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      user-select: none;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .canvas-bg {
+      background-color: #0b111e;
+      background-image: 
+        radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 20px 20px, 100px 100px, 100px 100px;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #111827;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen overflow-hidden flex flex-col">
+
+  <header class="h-14 border-b border-slate-800 bg-slate-900/90 backdrop-blur px-4 flex items-center justify-between z-20 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-indigo-400">
+        <i class="fa-solid fa-draw-polygon"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-sm leading-tight text-white flex items-center gap-2">
+          План Кровли & Схема
+          <span id="roleBadge" class="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">Редактор</span>
+        </h1>
+        <p class="text-[11px] text-slate-400 mono" id="statusCoords">X: 0 | Y: 0</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="flex items-center bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
+        <button id="modeAdminBtn" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-indigo-600 text-white shadow-sm">
+          <i class="fa-solid fa-pen-ruler"></i> Админ (Чертёж)
+        </button>
+        <button id="modeViewBtn" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-eye"></i> Просмотр (Инспекция)
+        </button>
+      </div>
+
+      <div class="h-6 w-px bg-slate-800 hidden md:block"></div>
+
+      <div class="flex items-center gap-1.5">
+        <button id="zoomOutBtn" title="Отдалить" class="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 transition">
+          <i class="fa-solid fa-minus text-xs"></i>
+        </button>
+        <span id="zoomLabel" class="text-xs mono text-slate-400 w-12 text-center">100%</span>
+        <button id="zoomInBtn" title="Приблизить" class="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 transition">
+          <i class="fa-solid fa-plus text-xs"></i>
+        </button>
+        <button id="zoomResetBtn" title="Центрировать" class="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 transition">
+          <i class="fa-solid fa-compress text-xs"></i>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="exportBtn" title="Экспорт проекта" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs text-slate-200 flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-download"></i> <span class="hidden sm:inline">Экспорт</span>
+        </button>
+        <label for="importFile" title="Импорт проекта" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs text-slate-200 flex items-center gap-1.5 cursor-pointer transition">
+          <i class="fa-solid fa-upload"></i> <span class="hidden sm:inline">Импорт</span>
+          <input type="file" id="importFile" accept=".json" class="hidden">
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex-1 flex overflow-hidden relative">
+    <aside id="toolbar" class="absolute top-4 left-4 z-20 flex flex-col gap-2 bg-slate-900/95 border border-slate-800 p-2 rounded-2xl shadow-2xl backdrop-blur">
+      <div class="flex flex-col gap-1">
+        <button data-tool="line" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-slate-300 hover:bg-slate-800 transition active:scale-95 bg-indigo-600 text-white" title="Линия / Стена (L)">
+          <i class="fa-solid fa-slash"></i>
+        </button>
+        <button data-tool="rect" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition active:scale-95" title="Прямоугольник (R)">
+          <i class="fa-regular fa-square"></i>
+        </button>
+        <button data-tool="free" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition active:scale-95" title="Карандаш (P)">
+          <i class="fa-solid fa-pencil"></i>
+        </button>
+        <button data-tool="marker" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-amber-400 hover:bg-amber-500/20 transition active:scale-95 relative" title="Поставить маркер (M)">
+          <i class="fa-solid fa-location-dot"></i>
+          <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        </button>
+        <button data-tool="pan" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition active:scale-95" title="Рука / Перемещение (H)">
+          <i class="fa-solid fa-hand"></i>
+        </button>
+      </div>
+
+      <div class="h-px bg-slate-800 my-1"></div>
+
+      <div class="flex flex-col gap-1">
+        <button id="snapToggle" class="w-10 h-10 rounded-xl flex items-center justify-center text-cyan-400 bg-cyan-950/40 border border-cyan-800/40 hover:bg-cyan-900/50 transition" title="Привязка к сетке (Snap)">
+          <i class="fa-solid fa-border-all"></i>
+        </button>
+        <button id="undoBtn" class="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Отменить последнее действие (Ctrl+Z)">
+          <i class="fa-solid fa-rotate-left"></i>
+        </button>
+        <button id="clearBtn" class="w-10 h-10 rounded-xl flex items-center justify-center text-rose-400 hover:bg-rose-950/40 transition" title="Очистить чертёж">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </div>
+    </aside>
+
+    <div id="canvasViewport" class="flex-1 w-full h-full overflow-hidden relative cursor-crosshair canvas-bg">
+      <canvas id="roofCanvas" class="block absolute top-0 left-0"></canvas>
+      <div id="markerOverlay" class="absolute top-0 left-0 pointer-events-none"></div>
+    </div>
+
+    <aside id="markerListPanel" class="w-80 border-l border-slate-800 bg-slate-900/90 backdrop-blur z-10 flex flex-col hidden lg:flex">
+      <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-indigo-400"></i> Список точек (<span id="markerCount">0</span>)
+        </h2>
+        <span class="text-[10px] text-slate-500 mono">Клик для фокуса</span>
+      </div>
+      <div id="markerList" class="flex-1 overflow-y-auto p-2 space-y-2 custom-scroll"></div>
+    </aside>
+  </div>
+
+  <div id="markerModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm hidden p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+      <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+            <i class="fa-solid fa-location-dot text-sm"></i>
+          </div>
+          <h3 id="modalTitle" class="font-bold text-sm text-white">Новая точка на кровле</h3>
+        </div>
+        <button id="closeModalBtn" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="markerForm" class="p-5 space-y-3.5 text-xs">
+        <input type="hidden" id="markerId">
+        <input type="hidden" id="markerCoordX">
+        <input type="hidden" id="markerCoordY">
+
+        <div>
+          <label class="block text-slate-400 font-medium mb-1">Название узла / участка *</label>
+          <input type="text" id="inputTitle" required placeholder="Напр. Воронка №2 или Стык парапета" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Категория / Статус</label>
+            <select id="inputStatus" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none">
+              <option value="ok">В норме (Зеленый)</option>
+              <option value="attention">Внимание (Желтый)</option>
+              <option value="critical">Дефект / Ремонт (Красный)</option>
+              <option value="info">Инфо / Замер (Синий)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">Координаты</label>
+            <input type="text" id="displayCoords" readonly class="w-full bg-slate-950/50 border border-slate-800 text-slate-400 rounded-lg px-3 py-2 outline-none mono">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-400 font-medium mb-1">Описание / Заметки</label>
+          <textarea id="inputDescription" rows="2" placeholder="Состояние мембраны, примыкания, трещины..." class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none"></textarea>
+        </div>
+
+        <div class="space-y-2">
+          <label class="block text-slate-400 font-medium">
+            Ссылка на Google Диск / Интернет-картинку
+          </label>
+          <input type="text" id="inputMediaUrl" placeholder="https://drive.google.com/file/d/.../view или прямой URL" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none">
+          
+          <div class="flex items-center gap-2 pt-1">
+            <span class="text-[10px] text-slate-500 uppercase font-semibold">или загрузить файл с устройства:</span>
+            <label class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] cursor-pointer transition inline-flex items-center gap-1.5 border border-slate-700">
+              <i class="fa-solid fa-paperclip"></i> Выбрать фото
+              <input type="file" id="localMediaInput" accept="image/*" class="hidden">
+            </label>
+          </div>
+          <p id="localFileInfo" class="text-[10px] text-emerald-400 truncate hidden"></p>
+        </div>
+
+        <div class="p-2.5 rounded-lg bg-indigo-950/30 border border-indigo-900/40 text-[11px] text-slate-300 space-y-1">
+          <p class="font-semibold text-indigo-300 flex items-center gap-1">
+            <i class="fa-solid fa-circle-info"></i> Для ссылок Google Диска:
+          </p>
+          <p class="text-slate-400 text-[10px] leading-tight">
+            Обязательно включите в настройках файла на Диске доступ: <b>"Все, у кого есть ссылка" (Читатель)</b>.
+          </p>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+          <button type="button" id="deleteMarkerBtn" class="px-3 py-2 text-rose-400 hover:bg-rose-950/40 border border-rose-900/50 rounded-lg font-medium transition hidden">
+            <i class="fa-solid fa-trash"></i> Удалить
+          </button>
+          <div class="flex items-center gap-2 ml-auto">
+            <button type="button" id="cancelModalBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-medium transition">Отмена</button>
+            <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition">Сохранить</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="viewModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md hidden p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col">
+      <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+        <div class="flex items-center gap-3">
+          <span id="viewStatusBadge" class="w-3 h-3 rounded-full shrink-0"></span>
+          <div>
+            <h3 id="viewTitle" class="font-bold text-base text-white"></h3>
+            <p id="viewMeta" class="text-xs text-slate-400 mono"></p>
+          </div>
+        </div>
+        <button id="closeViewModalBtn" class="text-slate-400 hover:text-white transition w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-800">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-5 space-y-4 custom-scroll">
+        <div id="viewModeBar" class="flex items-center justify-between bg-slate-950 p-1.5 rounded-xl border border-slate-800 hidden">
+          <span class="text-[11px] text-slate-400 px-2 font-medium">Режим отображения:</span>
+          <div class="flex items-center gap-1">
+            <button id="viewTabImage" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition">
+              <i class="fa-regular fa-image"></i> Фото
+            </button>
+            <button id="viewTabFrame" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition">
+              <i class="fa-solid fa-window-maximize"></i> Google Drive Фрейм
+            </button>
+          </div>
+        </div>
+
+        <div id="mediaContainer" class="w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex flex-col items-center justify-center min-h-[240px] relative"></div>
+
+        <div id="drivePermissionAlert" class="hidden p-3 rounded-xl bg-amber-950/40 border border-amber-900/50 text-amber-200 text-xs">
+          <div class="flex items-start gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-amber-400 mt-0.5"></i>
+            <div>
+              <p class="font-semibold">Если изображение не загружается:</p>
+              <p class="text-[11px] text-amber-300/80 mt-0.5">
+                Проверьте настройки Google Диска. Файл должен иметь параметр «Общий доступ» -> «Все, у кого есть ссылка». Либо нажмите переключатель «Google Drive Фрейм» вверху.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Отчёт / Заметки</h4>
+          <p id="viewDescription" class="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed bg-slate-950/40 p-3 rounded-lg border border-slate-800/60"></p>
+        </div>
+
+        <div id="viewExternalLinkWrap" class="pt-2 flex items-center justify-between border-t border-slate-800">
+          <a id="viewExternalLink" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-xs text-indigo-400 hover:text-indigo-300 underline font-medium">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Открыть источник в новой вкладке
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="customConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm hidden p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+      <h3 class="font-bold text-white text-base mb-2" id="confirmTitle">Подтверждение</h3>
+      <p class="text-xs text-slate-300 leading-relaxed mb-5" id="confirmMessage">Вы уверены?</p>
+      <div class="flex items-center justify-end gap-2 text-xs">
+        <button id="confirmCancelBtn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg">Отмена</button>
+        <button id="confirmOkBtn" class="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-lg">Продолжить</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'roof_blueprint_data_v2';
+
+      const statusColors = {
+        ok: { bg: '#22c55e', text: 'В норме', border: 'border-emerald-500', dot: 'bg-emerald-500' },
+        attention: { bg: '#eab308', text: 'Внимание', border: 'border-yellow-500', dot: 'bg-yellow-500' },
+        critical: { bg: '#ef4444', text: 'Дефект', border: 'border-rose-500', dot: 'bg-rose-500' },
+        info: { bg: '#3b82f6', text: 'Замер / Инфо', border: 'border-blue-500', dot: 'bg-blue-500' }
+      };
+
+      let state = {
+        mode: 'admin',
+        tool: 'line',
+        snapToGrid: true,
+        gridSize: 20,
+        shapes: [],
+        markers: [],
+        history: [],
+        scale: 1,
+        panX: 0,
+        panY: 0,
+        isDrawing: false,
+        isPanning: false,
+        startCoord: { x: 0, y: 0 },
+        currentCoord: { x: 0, y: 0 },
+        freehandPoints: [],
+        activeViewMarker: null,
+        activeViewMode: 'image'
+      };
+
+      const viewport = document.getElementById('canvasViewport');
+      const canvas = document.getElementById('roofCanvas');
+      const ctx = canvas.getContext('2d');
+      const markerOverlay = document.getElementById('markerOverlay');
+      const statusCoords = document.getElementById('statusCoords');
+      const zoomLabel = document.getElementById('zoomLabel');
+      const markerList = document.getElementById('markerList');
+      const markerCount = document.getElementById('markerCount');
+
+      const toolButtons = document.querySelectorAll('.tool-btn');
+      const modeAdminBtn = document.getElementById('modeAdminBtn');
+      const modeViewBtn = document.getElementById('modeViewBtn');
+      const roleBadge = document.getElementById('roleBadge');
+      const toolbar = document.getElementById('toolbar');
+
+      const markerModal = document.getElementById('markerModal');
+      const markerForm = document.getElementById('markerForm');
+      const deleteMarkerBtn = document.getElementById('deleteMarkerBtn');
+      const viewModal = document.getElementById('viewModal');
+      const customConfirmModal = document.getElementById('customConfirmModal');
+      const localMediaInput = document.getElementById('localMediaInput');
+      const localFileInfo = document.getElementById('localFileInfo');
+      const inputMediaUrl = document.getElementById('inputMediaUrl');
+
+      const viewModeBar = document.getElementById('viewModeBar');
+      const viewTabImage = document.getElementById('viewTabImage');
+      const viewTabFrame = document.getElementById('viewTabFrame');
+      const mediaContainer = document.getElementById('mediaContainer');
+      const drivePermissionAlert = document.getElementById('drivePermissionAlert');
+
+      function init() {
+        resizeCanvas();
+        loadSavedData();
+        setupEvents();
+        updateUI();
+        centerBlueprint();
+        render();
+      }
+
+      function resizeCanvas() {
+        canvas.width = viewport.clientWidth;
+        canvas.height = viewport.clientHeight;
+        markerOverlay.style.width = viewport.clientWidth + 'px';
+        markerOverlay.style.height = viewport.clientHeight + 'px';
+      }
+
+      window.addEventListener('resize', () => {
+        resizeCanvas();
+        render();
+      });
+
+      function extractDriveId(url) {
+        if (!url) return null;
+        const str = url.trim();
+        const fileD = str.match(/\/file\/d\/([a-zA-Z0-9_-]{20,})/);
+        if (fileD && fileD[1]) return fileD[1];
+
+        const idParam = str.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+        if (idParam && idParam[1]) return idParam[1];
+
+        const genericD = str.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+        if (genericD && genericD[1]) return genericD[1];
+
+        const directId = str.match(/^([a-zA-Z0-9_-]{25,})$/);
+        if (directId && directId[1]) return directId[1];
+
+        return null;
+      }
+
+      function resolveMediaInfo(url) {
+        if (!url) return { type: 'none' };
+        const trimmed = url.trim();
+
+        if (trimmed.startsWith('data:image/')) {
+          return {
+            type: 'data_image',
+            url: trimmed,
+            rawUrl: trimmed
+          };
+        }
+
+        const driveId = extractDriveId(trimmed);
+        if (driveId) {
+          return {
+            type: 'google_drive',
+            id: driveId,
+            lh3Url: `https://lh3.googleusercontent.com/d/${driveId}`,
+            thumbnailUrl: `https://drive.google.com/thumbnail?id=${driveId}&sz=w1200`,
+            embedUrl: `https://drive.google.com/file/d/${driveId}/preview`,
+            rawUrl: trimmed.includes('http') ? trimmed : `https://drive.google.com/file/d/${driveId}/view`
+          };
+        }
+
+        const isDirectImg = /\.(jpeg|jpg|gif|png|webp|svg)($|\?)/i.test(trimmed);
+        if (isDirectImg) {
+          return {
+            type: 'direct_image',
+            url: trimmed,
+            rawUrl: trimmed
+          };
+        }
+
+        return {
+          type: 'generic_link',
+          url: trimmed,
+          rawUrl: trimmed
+        };
+      }
+
+      function snap(val) {
+        if (!state.snapToGrid) return val;
+        return Math.round(val / state.gridSize) * state.gridSize;
+      }
+
+      function screenToWorld(sx, sy) {
+        return {
+          x: (sx - state.panX) / state.scale,
+          y: (sy - state.panY) / state.scale
+        };
+      }
+
+      function worldToScreen(wx, wy) {
+        return {
+          x: wx * state.scale + state.panX,
+          y: wy * state.scale + state.panY
+        };
+      }
+
+      function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(state.panX, state.panY);
+        ctx.scale(state.scale, state.scale);
+
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        for (let shape of state.shapes) {
+          ctx.strokeStyle = shape.stroke || '#60a5fa';
+          ctx.lineWidth = shape.width || 3;
+          ctx.fillStyle = shape.fill || 'rgba(59, 130, 246, 0.12)';
+
+          if (shape.type === 'line') {
+            ctx.beginPath();
+            ctx.moveTo(shape.x1, shape.y1);
+            ctx.lineTo(shape.x2, shape.y2);
+            ctx.stroke();
+          } else if (shape.type === 'rect') {
+            ctx.beginPath();
+            ctx.rect(shape.x, shape.y, shape.w, shape.h);
+            ctx.fill();
+            ctx.stroke();
+          } else if (shape.type === 'free') {
+            if (shape.points && shape.points.length > 1) {
+              ctx.beginPath();
+              ctx.moveTo(shape.points[0].x, shape.points[0].y);
+              for (let i = 1; i < shape.points.length; i++) {
+                ctx.lineTo(shape.points[i].x, shape.points[i].y);
+              }
+              ctx.stroke();
+            }
+          }
+        }
+
+        if (state.isDrawing && state.mode === 'admin') {
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2.5;
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+
+          if (state.tool === 'line') {
+            ctx.beginPath();
+            ctx.moveTo(state.startCoord.x, state.startCoord.y);
+            ctx.lineTo(state.currentCoord.x, state.currentCoord.y);
+            ctx.stroke();
+          } else if (state.tool === 'rect') {
+            const w = state.currentCoord.x - state.startCoord.x;
+            const h = state.currentCoord.y - state.startCoord.y;
+            ctx.beginPath();
+            ctx.rect(state.startCoord.x, state.startCoord.y, w, h);
+            ctx.fill();
+            ctx.stroke();
+          } else if (state.tool === 'free') {
+            if (state.freehandPoints.length > 1) {
+              ctx.beginPath();
+              ctx.moveTo(state.freehandPoints[0].x, state.freehandPoints[0].y);
+              for (let i = 1; i < state.freehandPoints.length; i++) {
+                ctx.lineTo(state.freehandPoints[i].x, state.freehandPoints[i].y);
+              }
+              ctx.stroke();
+            }
+          }
+        }
+
+        ctx.restore();
+        renderMarkersDOM();
+      }
+
+      function renderMarkersDOM() {
+        markerOverlay.innerHTML = '';
+        markerOverlay.style.pointerEvents = 'none';
+
+        state.markers.forEach((m) => {
+          const sc = worldToScreen(m.x, m.y);
+          if (sc.x < -50 || sc.x > canvas.width + 50 || sc.y < -50 || sc.y > canvas.height + 50) return;
+
+          const col = statusColors[m.status] || statusColors.info;
+          const markerEl = document.createElement('div');
+          markerEl.className = 'absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer group flex items-center justify-center';
+          markerEl.style.left = `${sc.x}px`;
+          markerEl.style.top = `${sc.y}px`;
+
+          markerEl.innerHTML = `
+            <div class="relative flex items-center justify-center">
+              <span class="absolute w-8 h-8 rounded-full opacity-60 animate-ping" style="background-color: ${col.bg}"></span>
+              <div class="w-7 h-7 rounded-full shadow-lg border-2 border-white/90 flex items-center justify-center text-white text-xs font-bold transition transform group-hover:scale-125" style="background-color: ${col.bg}">
+                <i class="fa-solid fa-camera text-[11px]"></i>
+              </div>
+              <div class="opacity-0 group-hover:opacity-100 transition pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white border border-slate-700 px-2.5 py-1 rounded-md text-[11px] whitespace-nowrap shadow-xl z-30">
+                <p class="font-semibold">${m.title}</p>
+                <p class="text-[9px] text-slate-400">${col.text}</p>
+              </div>
+            </div>
+          `;
+
+          markerEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (state.mode === 'admin') {
+              openEditMarkerModal(m);
+            } else {
+              openViewModal(m);
+            }
+          });
+
+          markerOverlay.appendChild(markerEl);
+        });
+      }
+
+      function updateMarkerListUI() {
+        markerList.innerHTML = '';
+        markerCount.textContent = state.markers.length;
+
+        if (state.markers.length === 0) {
+          markerList.innerHTML = `
+            <div class="text-center py-8 text-slate-600 text-xs">
+              <i class="fa-solid fa-map-pin text-2xl mb-2 opacity-50 block"></i>
+              Точек пока нет. Выберите инструмент "Маркер" и кликните на чертёж.
+            </div>
+          `;
+          return;
+        }
+
+        state.markers.forEach((m, idx) => {
+          const col = statusColors[m.status] || statusColors.info;
+          const card = document.createElement('div');
+          card.className = 'p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition flex items-start gap-2.5';
+          card.innerHTML = `
+            <div class="w-3 h-3 rounded-full mt-1 shrink-0 ${col.dot}"></div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <h4 class="text-xs font-semibold text-white truncate">${m.title}</h4>
+                <span class="text-[10px] text-slate-500 mono shrink-0">#${idx + 1}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 line-clamp-1">${m.description || 'Без описания'}</p>
+              <div class="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
+                <span><i class="fa-solid fa-location-crosshairs text-[9px]"></i> ${Math.round(m.x)}, ${Math.round(m.y)}</span>
+                ${m.mediaUrl ? '<span class="text-indigo-400"><i class="fa-solid fa-photo-film"></i> Медиа</span>' : ''}
+              </div>
+            </div>
+          `;
+
+          card.addEventListener('click', () => {
+            focusOnPoint(m.x, m.y);
+            if (state.mode === 'view') {
+              openViewModal(m);
+            }
+          });
+
+          markerList.appendChild(card);
+        });
+      }
+
+      function focusOnPoint(wx, wy) {
+        state.panX = canvas.width / 2 - wx * state.scale;
+        state.panY = canvas.height / 2 - wy * state.scale;
+        render();
+      }
+
+      function centerBlueprint() {
+        if (state.shapes.length === 0 && state.markers.length === 0) {
+          state.scale = 1;
+          state.panX = canvas.width / 2 - 400;
+          state.panY = canvas.height / 2 - 250;
+          render();
+          return;
+        }
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+        state.shapes.forEach(s => {
+          if (s.type === 'line') {
+            minX = Math.min(minX, s.x1, s.x2);
+            maxX = Math.max(maxX, s.x1, s.x2);
+            minY = Math.min(minY, s.y1, s.y2);
+            maxY = Math.max(maxY, s.y1, s.y2);
+          } else if (s.type === 'rect') {
+            minX = Math.min(minX, s.x, s.x + s.w);
+            maxX = Math.max(maxX, s.x, s.x + s.w);
+            minY = Math.min(minY, s.y, s.y + s.h);
+            maxY = Math.max(maxY, s.y, s.y + s.h);
+          } else if (s.type === 'free' && s.points) {
+            s.points.forEach(p => {
+              minX = Math.min(minX, p.x);
+              maxX = Math.max(maxX, p.x);
+              minY = Math.min(minY, p.y);
+              maxY = Math.max(maxY, p.y);
+            });
+          }
+        });
+
+        state.markers.forEach(m => {
+          minX = Math.min(minX, m.x);
+          maxX = Math.max(maxX, m.x);
+          minY = Math.min(minY, m.y);
+          maxY = Math.max(maxY, m.y);
+        });
+
+        const pad = 100;
+        const bw = (maxX - minX) || 800;
+        const bh = (maxY - minY) || 500;
+        const scaleX = (canvas.width - pad * 2) / bw;
+        const scaleY = (canvas.height - pad * 2) / bh;
+        state.scale = Math.min(Math.max(Math.min(scaleX, scaleY), 0.3), 2.5);
+
+        state.panX = (canvas.width - bw * state.scale) / 2 - minX * state.scale;
+        state.panY = (canvas.height - bh * state.scale) / 2 - minY * state.scale;
+
+        zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
+        render();
+      }
+
+      function setupEvents() {
+        viewport.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+
+        viewport.addEventListener('touchstart', onTouchStart, { passive: false });
+        window.addEventListener('touchmove', onTouchMove, { passive: false });
+        window.addEventListener('touchend', onTouchEnd);
+
+        viewport.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+          const mouseX = e.clientX;
+          const mouseY = e.clientY - 56;
+
+          const world = screenToWorld(mouseX, mouseY);
+          const newScale = Math.min(Math.max(state.scale * zoomFactor, 0.2), 5);
+
+          state.panX = mouseX - world.x * newScale;
+          state.panY = mouseY - world.y * newScale;
+          state.scale = newScale;
+
+          zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
+          render();
+        }, { passive: false });
+
+        toolButtons.forEach(btn => {
+          btn.addEventListener('click', () => {
+            toolButtons.forEach(b => {
+              b.classList.remove('bg-indigo-600', 'text-white');
+              b.classList.add('text-slate-400');
+            });
+            btn.classList.add('bg-indigo-600', 'text-white');
+            btn.classList.remove('text-slate-400');
+            state.tool = btn.dataset.tool;
+            updateCursor();
+          });
+        });
+
+        modeAdminBtn.addEventListener('click', () => switchMode('admin'));
+        modeViewBtn.addEventListener('click', () => switchMode('view'));
+
+        document.getElementById('zoomInBtn').addEventListener('click', () => applyZoom(1.2));
+        document.getElementById('zoomOutBtn').addEventListener('click', () => applyZoom(0.83));
+        document.getElementById('zoomResetBtn').addEventListener('click', centerBlueprint);
+
+        document.getElementById('snapToggle').addEventListener('click', function () {
+          state.snapToGrid = !state.snapToGrid;
+          this.classList.toggle('text-cyan-400', state.snapToGrid);
+          this.classList.toggle('border-cyan-800/40', state.snapToGrid);
+          this.classList.toggle('text-slate-500', !state.snapToGrid);
+        });
+
+        document.getElementById('undoBtn').addEventListener('click', undoAction);
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+          showConfirm('Очистка схемы', 'Удалить все начерченные линии и стены? Точки сохранятся.', () => {
+            state.history.push({ shapes: JSON.parse(JSON.stringify(state.shapes)) });
+            state.shapes = [];
+            saveData();
+            render();
+          });
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', exportJSON);
+        document.getElementById('importFile').addEventListener('change', importJSON);
+
+        markerForm.addEventListener('submit', onSaveMarker);
+        document.getElementById('closeModalBtn').addEventListener('click', closeMarkerModal);
+        document.getElementById('cancelModalBtn').addEventListener('click', closeMarkerModal);
+        deleteMarkerBtn.addEventListener('click', onDeleteMarker);
+
+        document.getElementById('closeViewModalBtn').addEventListener('click', () => {
+          viewModal.classList.add('hidden');
+        });
+
+        localMediaInput.addEventListener('change', handleLocalFileUpload);
+
+        viewTabImage.addEventListener('click', () => setModalViewMode('image'));
+        viewTabFrame.addEventListener('click', () => setModalViewMode('frame'));
+
+        window.addEventListener('keydown', (e) => {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+          if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+            undoAction();
+          } else if (e.key === 'l' || e.key === 'L') {
+            selectTool('line');
+          } else if (e.key === 'r' || e.key === 'R') {
+            selectTool('rect');
+          } else if (e.key === 'p' || e.key === 'P') {
+            selectTool('free');
+          } else if (e.key === 'm' || e.key === 'M') {
+            selectTool('marker');
+          } else if (e.key === 'h' || e.key === 'H') {
+            selectTool('pan');
+          }
+        });
+      }
+
+      function handleLocalFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          inputMediaUrl.value = event.target.result;
+          localFileInfo.textContent = `Выбран файл: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+          localFileInfo.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function selectTool(toolName) {
+        const btn = document.querySelector(`[data-tool="${toolName}"]`);
+        if (btn) btn.click();
+      }
+
+      function applyZoom(factor) {
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const world = screenToWorld(cx, cy);
+        state.scale = Math.min(Math.max(state.scale * factor, 0.2), 5);
+        state.panX = cx - world.x * state.scale;
+        state.panY = cy - world.y * state.scale;
+        zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
+        render();
+      }
+
+      function switchMode(newMode) {
+        state.mode = newMode;
+        if (newMode === 'admin') {
+          modeAdminBtn.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-indigo-600 text-white shadow-sm';
+          modeViewBtn.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition';
+          roleBadge.textContent = 'Редактор';
+          roleBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30';
+          toolbar.classList.remove('hidden');
+        } else {
+          modeViewBtn.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-emerald-600 text-white shadow-sm';
+          modeAdminBtn.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition';
+          roleBadge.textContent = 'Инспекция';
+          roleBadge.className = 'text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+          toolbar.classList.add('hidden');
+        }
+        updateCursor();
+        render();
+      }
+
+      function updateCursor() {
+        if (state.mode === 'view' || state.tool === 'pan') {
+          viewport.style.cursor = 'grab';
+        } else if (state.tool === 'marker') {
+          viewport.style.cursor = 'pointer';
+        } else {
+          viewport.style.cursor = 'crosshair';
+        }
+      }
+
+      function onPointerDown(e) {
+        if (e.button === 1 || state.tool === 'pan' || state.mode === 'view') {
+          state.isPanning = true;
+          state.startCoord = { x: e.clientX, y: e.clientY };
+          viewport.style.cursor = 'grabbing';
+          return;
+        }
+
+        if (e.button !== 0 || state.mode !== 'admin') return;
+
+        const rect = viewport.getBoundingClientRect();
+        const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+        const snappedX = snap(world.x);
+        const snappedY = snap(world.y);
+
+        if (state.tool === 'marker') {
+          openCreateMarkerModal(snappedX, snappedY);
+          return;
+        }
+
+        state.isDrawing = true;
+        state.startCoord = { x: snappedX, y: snappedY };
+        state.currentCoord = { x: snappedX, y: snappedY };
+
+        if (state.tool === 'free') {
+          state.freehandPoints = [{ x: world.x, y: world.y }];
+        }
+      }
+
+      function onPointerMove(e) {
+        const rect = viewport.getBoundingClientRect();
+        const rawWorld = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+        statusCoords.textContent = `X: ${Math.round(rawWorld.x)} | Y: ${Math.round(rawWorld.y)}`;
+
+        if (state.isPanning) {
+          const dx = e.clientX - state.startCoord.x;
+          const dy = e.clientY - state.startCoord.y;
+          state.panX += dx;
+          state.panY += dy;
+          state.startCoord = { x: e.clientX, y: e.clientY };
+          render();
+          return;
+        }
+
+        if (!state.isDrawing || state.mode !== 'admin') return;
+
+        const snappedX = snap(rawWorld.x);
+        const snappedY = snap(rawWorld.y);
+        state.currentCoord = { x: snappedX, y: snappedY };
+
+        if (state.tool === 'free') {
+          state.freehandPoints.push({ x: rawWorld.x, y: rawWorld.y });
+        }
+
+        render();
+      }
+
+      function onPointerUp() {
+        if (state.isPanning) {
+          state.isPanning = false;
+          updateCursor();
+          return;
+        }
+
+        if (!state.isDrawing || state.mode !== 'admin') return;
+        state.isDrawing = false;
+
+        state.history.push({ shapes: JSON.parse(JSON.stringify(state.shapes)) });
+
+        if (state.tool === 'line') {
+          if (state.startCoord.x !== state.currentCoord.x || state.startCoord.y !== state.currentCoord.y) {
+            state.shapes.push({
+              type: 'line',
+              x1: state.startCoord.x,
+              y1: state.startCoord.y,
+              x2: state.currentCoord.x,
+              y2: state.currentCoord.y,
+              stroke: '#60a5fa',
+              width: 3
+            });
+          }
+        } else if (state.tool === 'rect') {
+          const x = Math.min(state.startCoord.x, state.currentCoord.x);
+          const y = Math.min(state.startCoord.y, state.currentCoord.y);
+          const w = Math.abs(state.currentCoord.x - state.startCoord.x);
+          const h = Math.abs(state.currentCoord.y - state.startCoord.y);
+          if (w > 2 && h > 2) {
+            state.shapes.push({
+              type: 'rect',
+              x, y, w, h,
+              stroke: '#38bdf8',
+              fill: 'rgba(56, 189, 248, 0.1)',
+              width: 2.5
+            });
+          }
+        } else if (state.tool === 'free') {
+          if (state.freehandPoints.length > 2) {
+            state.shapes.push({
+              type: 'free',
+              points: [...state.freehandPoints],
+              stroke: '#93c5fd',
+              width: 2.5
+            });
+          }
+          state.freehandPoints = [];
+        }
+
+        saveData();
+        render();
+      }
+
+      function onTouchStart(e) {
+        if (e.touches.length === 1) {
+          const touch = e.touches[0];
+          onPointerDown({
+            button: 0,
+            clientX: touch.clientX,
+            clientY: touch.clientY
+          });
+        }
+      }
+
+      function onTouchMove(e) {
+        if (e.touches.length === 1) {
+          const touch = e.touches[0];
+          onPointerMove({
+            clientX: touch.clientX,
+            clientY: touch.clientY
+          });
+        }
+      }
+
+      function onTouchEnd() {
+        onPointerUp();
+      }
+
+      function undoAction() {
+        if (state.history.length > 0) {
+          const prev = state.history.pop();
+          state.shapes = prev.shapes;
+          saveData();
+          render();
+        }
+      }
+
+      function openCreateMarkerModal(x, y) {
+        document.getElementById('modalTitle').textContent = 'Новая точка на кровле';
+        document.getElementById('markerId').value = '';
+        document.getElementById('markerCoordX').value = x;
+        document.getElementById('markerCoordY').value = y;
+        document.getElementById('displayCoords').value = `X: ${Math.round(x)}, Y: ${Math.round(y)}`;
+        document.getElementById('inputTitle').value = '';
+        document.getElementById('inputDescription').value = '';
+        inputMediaUrl.value = '';
+        localFileInfo.classList.add('hidden');
+        localFileInfo.textContent = '';
+        localMediaInput.value = '';
+        document.getElementById('inputStatus').value = 'ok';
+        deleteMarkerBtn.classList.add('hidden');
+        markerModal.classList.remove('hidden');
+      }
+
+      function openEditMarkerModal(marker) {
+        document.getElementById('modalTitle').textContent = 'Редактирование точки';
+        document.getElementById('markerId').value = marker.id;
+        document.getElementById('markerCoordX').value = marker.x;
+        document.getElementById('markerCoordY').value = marker.y;
+        document.getElementById('displayCoords').value = `X: ${Math.round(marker.x)}, Y: ${Math.round(marker.y)}`;
+        document.getElementById('inputTitle').value = marker.title;
+        document.getElementById('inputDescription').value = marker.description || '';
+        inputMediaUrl.value = marker.mediaUrl || '';
+        localFileInfo.classList.add('hidden');
+        localFileInfo.textContent = '';
+        localMediaInput.value = '';
+        document.getElementById('inputStatus').value = marker.status || 'ok';
+        deleteMarkerBtn.classList.remove('hidden');
+        markerModal.classList.remove('hidden');
+      }
+
+      function closeMarkerModal() {
+        markerModal.classList.add('hidden');
+      }
+
+      function onSaveMarker(e) {
+        e.preventDefault();
+        const id = document.getElementById('markerId').value;
+        const x = parseFloat(document.getElementById('markerCoordX').value);
+        const y = parseFloat(document.getElementById('markerCoordY').value);
+        const title = document.getElementById('inputTitle').value.trim();
+        const description = document.getElementById('inputDescription').value.trim();
+        const mediaUrl = inputMediaUrl.value.trim();
+        const status = document.getElementById('inputStatus').value;
+
+        if (id) {
+          const index = state.markers.findIndex(m => m.id === id);
+          if (index !== -1) {
+            state.markers[index] = { ...state.markers[index], title, description, mediaUrl, status };
+          }
+        } else {
+          state.markers.push({
+            id: 'm_' + Date.now(),
+            x, y,
+            title,
+            description,
+            mediaUrl,
+            status,
+            createdAt: new Date().toISOString()
+          });
+        }
+
+        saveData();
+        closeMarkerModal();
+        updateMarkerListUI();
+        render();
+      }
+
+      function onDeleteMarker() {
+        const id = document.getElementById('markerId').value;
+        if (!id) return;
+
+        showConfirm('Удаление точки', 'Вы действительно хотите удалить эту отметку?', () => {
+          state.markers = state.markers.filter(m => m.id !== id);
+          saveData();
+          closeMarkerModal();
+          updateMarkerListUI();
+          render();
+        });
+      }
+
+      function setModalViewMode(mode) {
+        state.activeViewMode = mode;
+        if (mode === 'image') {
+          viewTabImage.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition';
+          viewTabFrame.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition';
+        } else {
+          viewTabFrame.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition';
+          viewTabImage.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition';
+        }
+        if (state.activeViewMarker) {
+          renderModalMedia(state.activeViewMarker);
+        }
+      }
+
+      function renderModalMedia(marker) {
+        const info = resolveMediaInfo(marker.mediaUrl);
+        mediaContainer.innerHTML = '';
+        drivePermissionAlert.classList.add('hidden');
+
+        if (info.type === 'google_drive') {
+          viewModeBar.classList.remove('hidden');
+          drivePermissionAlert.classList.remove('hidden');
+
+          if (state.activeViewMode === 'image') {
+            const img = document.createElement('img');
+            img.referrerPolicy = 'no-referrer';
+            img.crossOrigin = 'anonymous';
+            img.src = info.lh3Url;
+            img.alt = marker.title;
+            img.className = 'max-h-[62vh] w-auto max-w-full object-contain rounded-lg shadow-lg';
+
+            img.onerror = function () {
+              if (img.src !== info.thumbnailUrl) {
+                img.src = info.thumbnailUrl;
+              } else {
+                setModalViewMode('frame');
+              }
+            };
+            mediaContainer.appendChild(img);
+          } else {
+            mediaContainer.innerHTML = `
+              <div class="relative w-full aspect-video bg-black flex items-center justify-center">
+                <iframe src="${info.embedUrl}" class="w-full h-full border-0 rounded-xl" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+              </div>
+            `;
+          }
+          return;
+        }
+
+        viewModeBar.classList.add('hidden');
+
+        if (info.type === 'data_image' || info.type === 'direct_image') {
+          mediaContainer.innerHTML = `
+            <img src="${info.url}" alt="${marker.title}" referrerpolicy="no-referrer" class="max-h-[62vh] w-auto max-w-full object-contain rounded-lg shadow-lg" onerror="this.src='https://placehold.co/800x450/1e293b/ef4444?text=Ошибка+загрузки+изображения'">
+          `;
+        } else if (info.type === 'generic_link') {
+          mediaContainer.innerHTML = `
+            <div class="p-8 text-center text-slate-400">
+              <i class="fa-solid fa-file-arrow-up text-3xl mb-2 text-indigo-400 block"></i>
+              <p class="text-sm">Внешний медиа-ресурс прикреплён</p>
+              <a href="${info.url}" target="_blank" class="mt-3 inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-xs">
+                Открыть файл в новой вкладке
+              </a>
+            </div>
+          `;
+        } else {
+          mediaContainer.innerHTML = `
+            <div class="py-12 text-center text-slate-500 text-xs">
+              <i class="fa-regular fa-image text-3xl mb-2 opacity-40 block"></i>
+              К этой точке не прикреплены фото или видео.
+            </div>
+          `;
+        }
+      }
+
+      function openViewModal(marker) {
+        state.activeViewMarker = marker;
+        state.activeViewMode = 'image';
+        setModalViewMode('image');
+
+        const col = statusColors[marker.status] || statusColors.info;
+        document.getElementById('viewTitle').textContent = marker.title;
+        document.getElementById('viewMeta').textContent = `Координаты: ${Math.round(marker.x)}, ${Math.round(marker.y)} | Статус: ${col.text}`;
+        
+        const badge = document.getElementById('viewStatusBadge');
+        badge.style.backgroundColor = col.bg;
+
+        document.getElementById('viewDescription').textContent = marker.description || 'Описание отсутствует.';
+
+        const externalLink = document.getElementById('viewExternalLink');
+        const externalWrap = document.getElementById('viewExternalLinkWrap');
+
+        if (marker.mediaUrl) {
+          const info = resolveMediaInfo(marker.mediaUrl);
+          externalWrap.classList.remove('hidden');
+          externalLink.href = info.rawUrl || marker.mediaUrl;
+        } else {
+          externalWrap.classList.add('hidden');
+        }
+
+        renderModalMedia(marker);
+        viewModal.classList.remove('hidden');
+      }
+
+      function showConfirm(title, message, onOk) {
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMessage').textContent = message;
+        customConfirmModal.classList.remove('hidden');
+
+        const okBtn = document.getElementById('confirmOkBtn');
+        const cancelBtn = document.getElementById('confirmCancelBtn');
+
+        const cleanup = () => {
+          customConfirmModal.classList.add('hidden');
+          okBtn.removeEventListener('click', handleOk);
+          cancelBtn.removeEventListener('click', handleCancel);
+        };
+
+        const handleOk = () => {
+          cleanup();
+          if (onOk) onOk();
+        };
+
+        const handleCancel = () => {
+          cleanup();
+        };
+
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
+      }
+
+      function saveData() {
+        try {
+          const payload = {
+            shapes: state.shapes,
+            markers: state.markers,
+            updatedAt: new Date().toISOString()
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        } catch (e) {
+          console.error('Storage quota exceeded or error saving:', e);
+        }
+      }
+
+      function loadSavedData() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('roof_blueprint_data_v1');
+          if (raw) {
+            const data = JSON.parse(raw);
+            state.shapes = data.shapes || [];
+            state.markers = data.markers || [];
+            return;
+          }
+        } catch (e) {
+          console.error('Error reading storage:', e);
+        }
+
+        state.shapes = [
+          { type: 'rect', x: 200, y: 150, w: 600, h: 360, stroke: '#38bdf8', fill: 'rgba(56, 189, 248, 0.08)', width: 3 },
+          { type: 'line', x1: 200, y1: 330, x2: 800, y2: 330, stroke: '#64748b', width: 2 },
+          { type: 'rect', x: 300, y: 200, w: 80, h: 60, stroke: '#94a3b8', fill: 'rgba(148, 163, 184, 0.15)', width: 2 },
+          { type: 'rect', x: 620, y: 380, w: 90, h: 70, stroke: '#94a3b8', fill: 'rgba(148, 163, 184, 0.15)', width: 2 }
+        ];
+
+        state.markers = [
+          {
+            id: 'demo-1',
+            x: 340,
+            y: 230,
+            title: 'Вентшахта №1 (Секция А)',
+            status: 'critical',
+            description: 'Повреждение гидроизоляционного фартука по периметру примыкания. Риск протечки при косом дожде.',
+            mediaUrl: 'https://placehold.co/1200x800/1e293b/ef4444?text=Фото:+Дефект+примыкания+вентшахты',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'demo-2',
+            x: 750,
+            y: 190,
+            title: 'Кровельная воронка №4',
+            status: 'attention',
+            description: 'Листвоуловитель засорён мелким гравием и мхом. Проведена чистка.',
+            mediaUrl: 'https://placehold.co/1200x800/1e293b/eab308?text=Фото:+Воронка+требует+чистки',
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'demo-3',
+            x: 500,
+            y: 330,
+            title: 'Деформационный шов',
+            status: 'ok',
+            description: 'Компенсатор в норме, мастика эластичная, адгезия сохранена.',
+            mediaUrl: 'https://placehold.co/1200x800/1e293b/22c55e?text=Фото:+Состояние+шва+норма',
+            createdAt: new Date().toISOString()
+          }
+        ];
+      }
+
+      function updateUI() {
+        updateMarkerListUI();
+        zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
+      }
+
+      function exportJSON() {
+        const payload = {
+          version: '2.0',
+          title: 'Roof Blueprint Data',
+          exportedAt: new Date().toISOString(),
+          shapes: state.shapes,
+          markers: state.markers
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `roof-blueprint-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      function importJSON(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          try {
+            const data = JSON.parse(evt.target.result);
+            if (data.shapes && Array.isArray(data.shapes) && data.markers && Array.isArray(data.markers)) {
+              state.shapes = data.shapes;
+              state.markers = data.markers;
+              saveData();
+              updateMarkerListUI();
+              centerBlueprint();
+              render();
+            }
+          } catch (err) {
+            console.error('Import parse error:', err);
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      }
+
+      window.onload = init;
+    })();
+  </script>
+</body>
+</html>
