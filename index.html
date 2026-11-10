@@ -649,9 +649,9 @@
       const adminGateOk = document.getElementById('adminGateOk');
       const adminGateCancel = document.getElementById('adminGateCancel');
 
-      function init() {
+      async function init() {
         resizeCanvas();
-        loadSavedData();
+        await loadSavedData();
         fillKindSelect();
         fillKindLegend();
         setupEvents();
@@ -2371,32 +2371,65 @@
 
         return { shapes: shapes, markers: [] };
       }
-      function loadSavedData() {
-        let data = null;
+      const SHARED_URL = './data.json';
+
+      // Данные бывают двух сортов:
+      //  1) общая версия в data.json рядом с сайтом — её видят все посетители;
+      //  2) локальная правка в браузере — только у этого человека.
+      // Общая версия главнее, если она новее локальной правки.
+      async function loadSavedData() {
+        let local = null;
         try {
           const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('roof_blueprint_data_v1');
-          if (raw) data = JSON.parse(raw);
+          if (raw) local = JSON.parse(raw);
         } catch (e) {
           console.error('Error reading storage:', e);
         }
 
-        const seedVersion = localStorage.getItem(SEED_KEY);
+        let shared = null;
+        try {
+          const res = await fetch(SHARED_URL, { cache: 'no-store' });
+          if (res.ok) shared = await res.json();
+        } catch (e) {
+          // нет сети или файла — работаем с тем, что уже есть
+        }
 
-        // смена версии стартовой схемы = «стереть всё и нарисовать заново»
-        if (!data || seedVersion !== String(SEED_VERSION)) {
-          const seed = buildPlanSeed();
-          state.shapes = seed.shapes;
-          state.markers = seed.markers;
+        const localTime = (local && local.updatedAt) ? new Date(local.updatedAt).getTime() : 0;
+        const sharedTime = (shared && shared.sharedAt) ? new Date(shared.sharedAt).getTime() : 0;
+
+        if (shared && Array.isArray(shared.shapes) && (!local || sharedTime > localTime)) {
+          state.shapes = shared.shapes;
+          state.markers = shared.markers || [];
+          normalizeAllMarkers();
           try {
-            localStorage.setItem(SEED_KEY, String(SEED_VERSION));
-            saveData();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+              shapes: state.shapes,
+              markers: state.markers,
+              updatedAt: shared.sharedAt || new Date().toISOString()
+            }));
           } catch (e) {}
           return;
         }
 
-        state.shapes = data.shapes || [];
-        state.markers = data.markers || [];
-        normalizeAllMarkers();
+        if (local) {
+          state.shapes = local.shapes || [];
+          state.markers = local.markers || [];
+          normalizeAllMarkers();
+          return;
+        }
+
+        // ни общей версии, ни локальной — рисуем встроенный план.
+        // Метка времени нарочно старая: как только появится общая версия, она победит.
+        const seed = buildPlanSeed();
+        state.shapes = seed.shapes;
+        state.markers = seed.markers;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            shapes: state.shapes,
+            markers: state.markers,
+            updatedAt: '2000-01-01T00:00:00.000Z'
+          }));
+        } catch (e) {}
       }
       function updateUI() {
         updateMarkerListUI();
