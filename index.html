@@ -81,10 +81,21 @@
         left: 10px !important;
         right: 10px !important;
         flex-direction: row !important;
-        justify-content: space-between;
+        flex-wrap: wrap !important;
+        justify-content: center;
         gap: 6px;
         padding: 8px !important;
         border-radius: 16px !important;
+      }
+      /* внутренние группы кнопок тоже в ряд, иначе панель вырастает на пол-экрана */
+      #toolbar > div {
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        justify-content: center;
+        gap: 6px !important;
+      }
+      #toolbar > .h-px {
+        display: none !important;
       }
       #toolbar .tool-btn {
         width: 44px !important;
@@ -228,6 +239,12 @@
         <button data-tool="marker" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-amber-400 hover:bg-amber-500/20 transition active:scale-95 relative" title="Поставить маркер (M)">
           <i class="fa-solid fa-location-dot"></i>
           <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        </button>
+        <button data-tool="text" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition active:scale-95" title="Надпись (T): тап по схеме ставит текст, тап по готовому — правит">
+          <i class="fa-solid fa-font"></i>
+        </button>
+        <button data-tool="erase" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-rose-950/50 hover:text-rose-400 transition active:scale-95" title="Ластик (X): тап по стене или надписи удаляет только её">
+          <i class="fa-solid fa-eraser"></i>
         </button>
         <button data-tool="pan" class="tool-btn w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition active:scale-95" title="Рука / Перемещение (H)">
           <i class="fa-solid fa-hand"></i>
@@ -467,6 +484,25 @@
     </div>
   </div>
 
+  <div id="textModal" class="fixed inset-0 z-[55] flex items-center justify-center bg-black/80 backdrop-blur-md hidden p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+      <h3 class="font-bold text-white text-base mb-3">Надпись на схеме</h3>
+      <textarea id="textModalInput" rows="3" class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none text-sm" placeholder="Например: Лестничная клетка"></textarea>
+      <div class="flex items-center gap-2 mt-3">
+        <label class="text-[11px] text-slate-400">Размер</label>
+        <input type="range" id="textModalSize" min="10" max="60" step="1" value="20" class="flex-1">
+        <span id="textModalSizeLabel" class="text-[11px] mono text-slate-300 w-8 text-right">20</span>
+      </div>
+      <div class="flex items-center justify-between gap-2 mt-4">
+        <button type="button" id="textModalDelete" class="px-3 py-2 text-rose-400 hover:bg-rose-950/40 border border-rose-900/50 rounded-lg text-xs hidden">Удалить</button>
+        <div class="flex items-center gap-2 ml-auto">
+          <button type="button" id="textModalCancel" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs">Отмена</button>
+          <button type="button" id="textModalOk" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg text-xs">Готово</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="customConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm hidden p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 shadow-2xl">
       <h3 class="font-bold text-white text-base mb-2" id="confirmTitle">Подтверждение</h3>
@@ -583,6 +619,7 @@
       const deleteMarkerBtn = document.getElementById('deleteMarkerBtn');
       const viewModal = document.getElementById('viewModal');
       const customConfirmModal = document.getElementById('customConfirmModal');
+      const textModal = document.getElementById('textModal');
       const localMediaInput = document.getElementById('localMediaInput');
       const localFileInfo = document.getElementById('localFileInfo');
       const mediaRowsEl = document.getElementById('mediaRows');
@@ -615,7 +652,6 @@
       function init() {
         resizeCanvas();
         loadSavedData();
-        ensureMediaSeed();
         fillKindSelect();
         fillKindLegend();
         setupEvents();
@@ -795,6 +831,13 @@
             ctx.rect(shape.x, shape.y, shape.w, shape.h);
             ctx.fill();
             ctx.stroke();
+          } else if (shape.type === 'circle') {
+            ctx.beginPath();
+            ctx.arc(shape.x, shape.y, shape.r || 20, 0, Math.PI * 2);
+            if (shape.fill && shape.fill !== 'none') ctx.fill();
+            ctx.stroke();
+          } else if (shape.type === 'text') {
+            drawShapeText(shape);
           } else if (shape.type === 'free') {
             if (shape.points && shape.points.length > 1) {
               ctx.beginPath();
@@ -1029,6 +1072,16 @@
           });
         });
 
+        document.getElementById('textModalOk').addEventListener('click', saveTextModal);
+        document.getElementById('textModalCancel').addEventListener('click', closeTextModal);
+        document.getElementById('textModalDelete').addEventListener('click', deleteTextShape);
+        document.getElementById('textModalSize').addEventListener('input', function () {
+          document.getElementById('textModalSizeLabel').textContent = this.value;
+        });
+        document.getElementById('textModalInput').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveTextModal(); }
+        });
+
         modeAdminBtn.addEventListener('click', () => {
           if (state.mode === 'admin') return;
           openAdminGate();
@@ -1134,6 +1187,10 @@
             selectTool('free');
           } else if (e.key === 'm' || e.key === 'M') {
             selectTool('marker');
+          } else if (e.key === 't' || e.key === 'T' || e.key === 'е' || e.key === 'Е') {
+            selectTool('text');
+          } else if (e.key === 'x' || e.key === 'X' || e.key === 'ч' || e.key === 'Ч') {
+            selectTool('erase');
           } else if (e.key === 'h' || e.key === 'H') {
             selectTool('pan');
           }
@@ -1225,8 +1282,10 @@
       function updateCursor() {
         if (state.mode === 'view' || state.tool === 'pan') {
           viewport.style.cursor = 'grab';
-        } else if (state.tool === 'marker') {
+        } else if (state.tool === 'marker' || state.tool === 'text') {
           viewport.style.cursor = 'pointer';
+        } else if (state.tool === 'erase') {
+          viewport.style.cursor = 'cell';
         } else {
           viewport.style.cursor = 'crosshair';
         }
@@ -1249,6 +1308,21 @@
 
         if (state.tool === 'marker') {
           openCreateMarkerModal(snappedX, snappedY);
+          return;
+        }
+
+        if (state.tool === 'erase') {
+          eraseAt(world.x, world.y);
+          return;
+        }
+
+        if (state.tool === 'text') {
+          const existing = hitTestShape(world.x, world.y);
+          if (existing && existing.type === 'text') {
+            openTextModal(existing, world.x, world.y);
+          } else {
+            openTextModal(null, world.x, world.y);
+          }
           return;
         }
 
@@ -1403,6 +1477,150 @@
         onPointerUp();
       }
 
+      // ---------- надписи и точечное удаление ----------
+
+      function shapeFont(size) {
+        return `${size || 20}px Inter, "Segoe UI", sans-serif`;
+      }
+
+      function measureTextShape(shape) {
+        const size = shape.size || 20;
+        ctx.save();
+        ctx.font = shapeFont(size);
+        const lines = String(shape.text || '').split('\n');
+        let w = 0;
+        lines.forEach(l => { w = Math.max(w, ctx.measureText(l).width); });
+        ctx.restore();
+        return { w: w, h: lines.length * size * 1.25 };
+      }
+
+      function drawShapeText(shape) {
+        const size = shape.size || 20;
+        const lines = String(shape.text || '').split('\n');
+        ctx.save();
+        ctx.font = shapeFont(size);
+        ctx.fillStyle = shape.stroke || '#e2e8f0';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        lines.forEach((line, i) => {
+          ctx.fillText(line, shape.x, shape.y + i * size * 1.25);
+        });
+        ctx.restore();
+      }
+
+      function distToSegment(px, py, x1, y1, x2, y2) {
+        const dx = x2 - x1, dy = y2 - y1;
+        const len2 = dx * dx + dy * dy;
+        if (len2 === 0) return Math.hypot(px - x1, py - y1);
+        let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+      }
+
+      function shapeArea(s) {
+        if (s.type === 'rect') return Math.abs(s.w * s.h);
+        if (s.type === 'circle') return Math.PI * (s.r || 20) * (s.r || 20);
+        if (s.type === 'text') { const m = measureTextShape(s); return m.w * m.h; }
+        if (s.type === 'line') return Math.hypot(s.x2 - s.x1, s.y2 - s.y1) * (s.width || 3);
+        return 1;
+      }
+
+      function hitTestShape(wx, wy) {
+        const tol = 14 / state.scale;
+        const hits = [];
+        state.shapes.forEach(s => {
+          if (s.type === 'line') {
+            if (distToSegment(wx, wy, s.x1, s.y1, s.x2, s.y2) < tol + (s.width || 3) / 2) hits.push(s);
+          } else if (s.type === 'rect') {
+            if (wx >= s.x - tol && wx <= s.x + s.w + tol && wy >= s.y - tol && wy <= s.y + s.h + tol) hits.push(s);
+          } else if (s.type === 'circle') {
+            const d = Math.hypot(wx - s.x, wy - s.y);
+            if (d <= (s.r || 20) + tol) hits.push(s);
+          } else if (s.type === 'text') {
+            const m = measureTextShape(s);
+            if (wx >= s.x - tol && wx <= s.x + m.w + tol && wy >= s.y - tol && wy <= s.y + m.h + tol) hits.push(s);
+          } else if (s.type === 'free') {
+            (s.points || []).forEach(p => {
+              if (Math.hypot(wx - p.x, wy - p.y) < tol * 1.5) { if (hits.indexOf(s) < 0) hits.push(s); }
+            });
+          }
+        });
+        if (!hits.length) return null;
+        // Порядок предпочтения: надписи правим первыми, линии — последними.
+        // Внутри одного типа берём самый мелкий элемент, чтобы тап по детали
+        // не удалял целиком большую раму, внутри которой она лежит.
+        const rank = { text: 0, circle: 1, rect: 2, free: 3, line: 4 };
+        hits.sort((a, b) => {
+          const ra = rank[a.type] === undefined ? 9 : rank[a.type];
+          const rb = rank[b.type] === undefined ? 9 : rank[b.type];
+          if (ra !== rb) return ra - rb;
+          return shapeArea(a) - shapeArea(b);
+        });
+        return hits[0];
+      }
+
+      let editingTextShape = null;
+
+      function openTextModal(shape, wx, wy) {
+        editingTextShape = shape || null;
+        document.getElementById('textModalInput').value = shape ? (shape.text || '') : '';
+        const size = shape ? (shape.size || 20) : 20;
+        document.getElementById('textModalSize').value = size;
+        document.getElementById('textModalSizeLabel').textContent = size;
+        document.getElementById('textModalDelete').classList.toggle('hidden', !shape);
+        textModal.classList.remove('hidden');
+        textModal.dataset.x = wx;
+        textModal.dataset.y = wy;
+        setTimeout(() => document.getElementById('textModalInput').focus(), 60);
+      }
+
+      function closeTextModal() {
+        textModal.classList.add('hidden');
+        editingTextShape = null;
+      }
+
+      function saveTextModal() {
+        const text = document.getElementById('textModalInput').value.trim();
+        const size = parseInt(document.getElementById('textModalSize').value, 10) || 20;
+        if (!text) { closeTextModal(); return; }
+
+        if (editingTextShape) {
+          editingTextShape.text = text;
+          editingTextShape.size = size;
+        } else {
+          state.shapes.push({
+            type: 'text',
+            x: parseFloat(textModal.dataset.x) || 0,
+            y: parseFloat(textModal.dataset.y) || 0,
+            text: text,
+            size: size,
+            stroke: '#e2e8f0'
+          });
+        }
+        saveData();
+        closeTextModal();
+        render();
+      }
+
+      function deleteTextShape() {
+        if (editingTextShape) {
+          const shape = editingTextShape;
+          state.shapes = state.shapes.filter(s => s !== shape);
+          saveData();
+          render();
+        }
+        closeTextModal();
+      }
+
+      function eraseAt(wx, wy) {
+        const shape = hitTestShape(wx, wy);
+        if (!shape) return false;
+        state.history.push({ shapes: JSON.parse(JSON.stringify(state.shapes)) });
+        state.shapes = state.shapes.filter(s => s !== shape);
+        saveData();
+        render();
+        return true;
+      }
       function undoAction() {
         if (state.history.length > 0) {
           const prev = state.history.pop();
@@ -2040,71 +2258,146 @@
         }
       }
 
+      // ---------- стартовая схема: план 4 этажа с фотографии ----------
+      // Единицы — сантиметры: 5000 мм = 500.
+
+      const SEED_VERSION = 2;
+      const SEED_KEY = 'roof_blueprint_seed';
+
+      function buildPlanSeed() {
+        const AX = [300, 800, 1350, 1650, 2200, 2700];
+        const AX_LABELS = ['Ас', 'Бс', 'Вс', 'Гс', 'Дс', 'Ес'];
+        const Y0 = 700, Y1 = 880, Y2 = 1550, Y3 = 1730;
+
+        const shapes = [];
+        const push = (o) => shapes.push(o);
+
+        const WALL = '#93c5fd';
+        const THIN = '#64748b';
+        const DIM = '#94a3b8';
+        const TXT = '#e2e8f0';
+
+        // сетка осей
+        AX.forEach((x) => {
+          push({ type: 'line', x1: x, y1: 520, x2: x, y2: 1900, stroke: '#475569', width: 1.2 });
+        });
+        [Y1, Y2].forEach((y) => {
+          push({ type: 'line', x1: 180, y1: y, x2: 2860, y2: y, stroke: '#475569', width: 1.2 });
+        });
+
+        // марки осей сверху
+        AX.forEach((x, i) => {
+          push({ type: 'circle', x: x, y: 480, r: 30, stroke: DIM, width: 1.6, fill: 'rgba(148,163,184,0.08)' });
+          push({ type: 'line', x1: x, y1: 510, x2: x, y2: 560, stroke: DIM, width: 1.2 });
+          push({ type: 'text', x: x - 17, y: 468, text: AX_LABELS[i], size: 20, stroke: TXT });
+        });
+
+        // размерная цепочка сверху
+        push({ type: 'line', x1: AX[0], y1: 600, x2: AX[AX.length - 1], y2: 600, stroke: DIM, width: 1.4 });
+        const SPANS = ['5000', '5500', '3000', '5500', '5000'];
+        AX.forEach((x) => {
+          push({ type: 'line', x1: x, y1: 585, x2: x, y2: 615, stroke: DIM, width: 1.4 });
+        });
+        SPANS.forEach((val, i) => {
+          const mid = (AX[i] + AX[i + 1]) / 2;
+          push({ type: 'text', x: mid - val.length * 5, y: 555, text: val, size: 17, stroke: TXT });
+        });
+
+        // размерная цепочка слева
+        push({ type: 'line', x1: 200, y1: Y0, x2: 200, y2: Y3, stroke: DIM, width: 1.4 });
+        [Y0, Y1, Y2, Y3].forEach((y) => {
+          push({ type: 'line', x1: 185, y1: y, x2: 215, y2: y, stroke: DIM, width: 1.4 });
+        });
+        [['1800', (Y0 + Y1) / 2], ['6700', (Y1 + Y2) / 2], ['1800', (Y2 + Y3) / 2]].forEach((pair) => {
+          push({ type: 'text', x: 120, y: pair[1] - 10, text: pair[0], size: 17, stroke: TXT });
+        });
+
+        // наружные стены
+        push({ type: 'rect', x: AX[0], y: Y0, w: AX[5] - AX[0], h: Y3 - Y0, stroke: WALL, width: 6, fill: 'none' });
+        push({ type: 'rect', x: AX[0], y: Y1, w: AX[5] - AX[0], h: Y2 - Y1, stroke: WALL, width: 4, fill: 'none' });
+
+        // лестничная клетка — несущие стены
+        push({ type: 'rect', x: AX[2], y: Y1, w: AX[3] - AX[2], h: Y2 - Y1, stroke: WALL, width: 8, fill: 'rgba(59,130,246,0.06)' });
+
+        // ступени
+        for (let y = Y1 + 40; y <= Y2 - 40; y += 45) {
+          push({ type: 'line', x1: AX[2] + 20, y1: y, x2: AX[3] - 20, y2: y, stroke: '#7dd3fc', width: 1.4 });
+        }
+
+        // террасы и комнаты слева и справа
+        const blocks = [
+          { x1: AX[1], x2: AX[2] },
+          { x1: AX[3], x2: AX[4] }
+        ];
+        blocks.forEach((b) => {
+          push({ type: 'rect', x: b.x1, y: Y1, w: b.x2 - b.x1, h: 320, stroke: WALL, width: 3, fill: 'rgba(148,163,184,0.10)' });
+          push({ type: 'rect', x: b.x1, y: Y1 + 320, w: b.x2 - b.x1, h: Y2 - Y1 - 320, stroke: WALL, width: 3, fill: 'none' });
+          // штриховка несущих участков
+          for (let i = 0; i < 10; i++) {
+            push({ type: 'line', x1: b.x1 + 10 + i * 22, y1: Y1 + 6, x2: b.x1 + 34 + i * 22, y2: Y1 + 60, stroke: 'rgba(148,163,184,0.55)', width: 1 });
+          }
+        });
+
+        // крайние простенки
+        push({ type: 'rect', x: AX[0], y: Y1, w: AX[1] - AX[0], h: 320, stroke: WALL, width: 3, fill: 'rgba(148,163,184,0.16)' });
+        push({ type: 'rect', x: AX[4], y: Y1, w: AX[5] - AX[4], h: 320, stroke: WALL, width: 3, fill: 'rgba(148,163,184,0.16)' });
+
+        // подписи
+        const t = (x, y, text, size, color) => push({ type: 'text', x: x, y: y, text: text, size: size || 18, stroke: color || TXT });
+
+        t(880, 400, 'Дом 13. План 4 этажа   Блок Б', 32, '#f8fafc');
+
+        // подписи помещений — одним многострочным блоком, иначе строки наезжают друг на друга
+        t(830, 930, '№7\n19,4-7,10\nТерраса\n15,0\n(4,5)  В-12"', 17);
+        t(830, 1300, '19.4-3,9\nКомната\n10,56\n№7', 17);
+        t(1690, 930, '№8\n19.4-8,10\nТерраса\n14,11\n(14,23)  В-12"', 17);
+        t(1690, 1300, '19.4-8,9\nКомната\n10,56\n№8', 17);
+
+        t(1385, 960, '+8,900', 14, '#a5b4fc');
+        t(1010, 1350, '+0,350', 14, '#a5b4fc');
+        t(2060, 1350, '+0,350', 14, '#a5b4fc');
+        t(1400, 1585, '104,4   -0,575', 13, '#a5b4fc');
+        t(1440, 1630, '174,4', 13, '#a5b4fc');
+        t(1385, 1470, 'Лестничная\nклетка', 13);
+
+        t(2760, 1140, '±11,750', 14, '#a5b4fc');
+        t(2760, 1240, '±11,550', 14, '#a5b4fc');
+        t(905, 700, '5140', 13, DIM);        t(905, 1760, '5140', 14, DIM);
+
+        // текст в мировых единицах (см) получается слишком мелким на экране — увеличиваем
+        shapes.forEach((s) => {
+          if (s.type === 'text') s.size = Math.round((s.size || 18) * 2);
+        });
+
+        return { shapes: shapes, markers: [] };
+      }
       function loadSavedData() {
+        let data = null;
         try {
           const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('roof_blueprint_data_v1');
-          if (raw) {
-            const data = JSON.parse(raw);
-            state.shapes = data.shapes || [];
-            state.markers = data.markers || [];
-            normalizeAllMarkers();
-            return;
-          }
+          if (raw) data = JSON.parse(raw);
         } catch (e) {
           console.error('Error reading storage:', e);
         }
 
-        state.shapes = [
-          { type: 'rect', x: 200, y: 150, w: 600, h: 360, stroke: '#38bdf8', fill: 'rgba(56, 189, 248, 0.08)', width: 3 },
-          { type: 'line', x1: 200, y1: 330, x2: 800, y2: 330, stroke: '#64748b', width: 2 },
-          { type: 'rect', x: 300, y: 200, w: 80, h: 60, stroke: '#94a3b8', fill: 'rgba(148, 163, 184, 0.15)', width: 2 },
-          { type: 'rect', x: 620, y: 380, w: 90, h: 70, stroke: '#94a3b8', fill: 'rgba(148, 163, 184, 0.15)', width: 2 }
-        ];
+        const seedVersion = localStorage.getItem(SEED_KEY);
 
-        state.markers = [
-          {
-            id: 'demo-1',
-            x: 340,
-            y: 230,
-            title: 'Вентшахта №1 (Секция А)',
-            status: 'critical',
-            description: 'Повреждение гидроизоляционного фартука по периметру примыкания. Риск протечки при косом дожде.',
-            media: [
-              { url: 'https://placehold.co/1200x800/1e293b/ef4444?text=Фото:+Дефект+примыкания+вентшахты', type: 'image' },
-              { url: 'https://placehold.co/1200x800/1e293b/3b82f6?text=Фото:+Общий+вид+секции+А', type: 'image' }
-            ],
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: 'demo-2',
-            x: 750,
-            y: 190,
-            title: 'Кровельная воронка №4',
-            status: 'attention',
-            description: 'Листвоуловитель засорён мелким гравием и мхом. Проведена чистка.',
-            media: [
-              { url: 'https://placehold.co/1200x800/1e293b/eab308?text=Фото:+Воронка+требует+чистки', type: 'image' },
-              { url: 'https://placehold.co/1200x800/1e293b/22c55e?text=Фото:+Воронка+после+чистки', type: 'image' }
-            ],
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: 'demo-3',
-            x: 500,
-            y: 330,
-            title: 'Деформационный шов',
-            status: 'ok',
-            description: 'Компенсатор в норме, мастика эластичная, адгезия сохранена.',
-            media: [
-              { url: 'https://placehold.co/1200x800/1e293b/22c55e?text=Фото:+Состояние+шва+норма', type: 'image' }
-            ],
-            createdAt: new Date().toISOString()
-          }
-        ];
+        // смена версии стартовой схемы = «стереть всё и нарисовать заново»
+        if (!data || seedVersion !== String(SEED_VERSION)) {
+          const seed = buildPlanSeed();
+          state.shapes = seed.shapes;
+          state.markers = seed.markers;
+          try {
+            localStorage.setItem(SEED_KEY, String(SEED_VERSION));
+            saveData();
+          } catch (e) {}
+          return;
+        }
 
+        state.shapes = data.shapes || [];
+        state.markers = data.markers || [];
         normalizeAllMarkers();
       }
-
       function updateUI() {
         updateMarkerListUI();
         zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
@@ -2154,6 +2447,15 @@
         e.target.value = '';
       }
 
+      window.__hitTest = function (x, y) {
+        const s = hitTestShape(x, y);
+        return s ? (s.type + ':' + (s.text || '')) : null;
+      };
+
+      // отладочный помощник для автотестов: мировые координаты -> экранные
+      window.__toScreen = function (wx, wy) {
+        return { x: wx * state.scale + state.panX, y: wy * state.scale + state.panY };
+      };
       window.onload = init;
     })();
   </script>
