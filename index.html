@@ -271,7 +271,7 @@
   </div>
 
   <div id="markerModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm hidden p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md max-h-[92vh] overflow-hidden shadow-2xl flex flex-col">
       <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <div class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
@@ -284,7 +284,7 @@
         </button>
       </div>
 
-      <form id="markerForm" class="p-5 space-y-3.5 text-xs">
+      <form id="markerForm" class="p-5 space-y-3.5 text-xs flex-1 min-h-0 overflow-y-auto custom-scroll">
         <input type="hidden" id="markerId">
         <input type="hidden" id="markerCoordX">
         <input type="hidden" id="markerCoordY">
@@ -367,7 +367,7 @@
           </p>
         </div>
 
-        <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+        <div class="sticky bottom-0 -mx-5 -mb-5 mt-2 px-5 pt-3 pb-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2">
           <button type="button" id="deleteMarkerBtn" class="px-3 py-2 text-rose-400 hover:bg-rose-950/40 border border-rose-900/50 rounded-lg font-medium transition hidden">
             <i class="fa-solid fa-trash"></i> Удалить
           </button>
@@ -494,6 +494,8 @@
         { id: 'аэратор',  label: 'Аэратор',  icon: 'fa-fan',              hint: 'вентиляционный выход' },
         { id: 'станция',  label: 'Станция',  icon: 'fa-tower-broadcast',  hint: 'оборудование на кровле' }
       ];
+
+      const MEDIA_TYPES = ['image', 'video', 'document'];
 
       const DEFAULT_KIND_ICON = 'fa-location-dot';
 
@@ -1561,7 +1563,7 @@
 
         const cleanMedia = (arr) => (Array.isArray(arr) ? arr : [])
           .filter(item => item && typeof item.url === 'string' && item.url.trim())
-          .map(item => ({ url: item.url.trim(), type: item.type === 'video' ? 'video' : 'image' }));
+          .map(item => ({ url: item.url.trim(), type: MEDIA_TYPES.indexOf(item.type) >= 0 ? item.type : detectMediaType(item.url.trim()) }));
 
         if (Array.isArray(out.sessions) && out.sessions.length) {
           out.sessions = out.sessions.map((s, i) => ({
@@ -1634,11 +1636,12 @@
         const item = media || { url: '', type: 'image' };
         const row = document.createElement('div');
         row.className = 'media-row flex items-center gap-1.5';
-        row.dataset.type = item.type === 'video' ? 'video' : 'image';
+        row.dataset.type = MEDIA_TYPES.indexOf(item.type) >= 0 ? item.type : 'image';
         row.innerHTML = `
           <div class="flex rounded-lg overflow-hidden border border-slate-800 shrink-0">
             <button type="button" data-type-btn="image" class="px-2 py-1.5 text-[10px] font-semibold transition">Фото</button>
             <button type="button" data-type-btn="video" class="px-2 py-1.5 text-[10px] font-semibold transition">Видео</button>
+            <button type="button" data-type-btn="document" class="px-2 py-1.5 text-[10px] font-semibold transition">Док</button>
           </div>
           <input type="text" class="media-row-input flex-1 min-w-0 bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-white outline-none text-xs" placeholder="https://drive.google.com/file/d/.../view или прямой URL">
           <button type="button" class="media-row-del w-8 h-8 shrink-0 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700 transition flex items-center justify-center" title="Удалить ссылку">
@@ -1649,11 +1652,11 @@
         row.querySelector('.media-row-input').value = item.url || '';
 
         const paint = () => {
-          const isVideo = row.dataset.type === 'video';
-          const imgBtn = row.querySelector('[data-type-btn="image"]');
-          const vidBtn = row.querySelector('[data-type-btn="video"]');
-          imgBtn.className = 'px-2 py-1.5 text-[10px] font-semibold transition ' + (isVideo ? 'text-slate-400 hover:text-white' : 'bg-indigo-600 text-white');
-          vidBtn.className = 'px-2 py-1.5 text-[10px] font-semibold transition ' + (isVideo ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white');
+          row.querySelectorAll('[data-type-btn]').forEach(btn => {
+            const active = btn.dataset.typeBtn === row.dataset.type;
+            btn.className = 'px-2 py-1.5 text-[10px] font-semibold transition ' +
+              (active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white');
+          });
         };
 
         row.querySelectorAll('[data-type-btn]').forEach(btn => {
@@ -1697,7 +1700,7 @@
         mediaRowsEl.querySelectorAll('.media-row').forEach(row => {
           const url = row.querySelector('.media-row-input').value.trim();
           if (!url) return;
-          result.push({ url, type: row.dataset.type === 'video' ? 'video' : 'image' });
+          result.push({ url, type: MEDIA_TYPES.indexOf(row.dataset.type) >= 0 ? row.dataset.type : 'image' });
         });
         return result;
       }
@@ -1820,6 +1823,25 @@
               </div>
             `;
           }
+        } else if (current.type === 'document') {
+          // документ: превью, если браузер умеет (PDF, Google Диск), иначе карточка со ссылкой
+          const isPdf = /\.pdf($|\?)/i.test(current.url);
+          let preview = '';
+          if (info.type === 'google_drive') {
+            preview = `<iframe src="${info.embedUrl}" style="width:100%; height:320px; border:none;"></iframe>`;
+          } else if (isPdf) {
+            preview = `<iframe src="${current.url}" style="width:100%; height:320px; border:none;"></iframe>`;
+          }
+          mediaContainer.innerHTML = `
+            ${preview}
+            <div class="p-5 text-center text-slate-300">
+              <i class="fa-solid fa-file-lines text-2xl text-indigo-400 mb-2 block"></i>
+              <p class="text-sm">Документ прикреплён</p>
+              <a href="${current.url}" target="_blank" rel="noopener noreferrer" class="mt-3 inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-xs">
+                Открыть документ
+              </a>
+            </div>
+          `;
         } else if (info.type === 'google_drive') {
           drivePermissionAlert.classList.remove('hidden');
           const img = document.createElement('img');
@@ -1894,7 +1916,7 @@
             (isActive ? 'border-indigo-500 ring-2 ring-indigo-500/40' : 'border-slate-800 hover:border-slate-600') +
             ' bg-slate-950 flex items-center justify-center';
 
-          const src = item.type === 'video' ? null : mediaThumbSource(item);
+          const src = item.type === 'image' ? mediaThumbSource(item) : null;
           if (src) {
             const im = document.createElement('img');
             im.src = src;
@@ -1907,7 +1929,9 @@
             thumb.appendChild(im);
           } else {
             thumb.innerHTML = item.type === 'video'
-              ? '<i class="fa-solid fa-circle-play text-indigo-400"></i>'
+              ? (item.type === 'document'
+                  ? '<i class="fa-solid fa-file-lines text-indigo-300 text-xs"></i>'
+                  : '<i class="fa-solid fa-circle-play text-indigo-400"></i>')
               : '<i class="fa-solid fa-image text-slate-600 text-xs"></i>';
           }
 
